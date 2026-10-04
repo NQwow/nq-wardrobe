@@ -1,0 +1,29 @@
+# ---------------- 依赖与构建产物 ----------------
+node_modules
+dist
+dist-ssr
+*.local
+
+# pnpm 本地依赖缓存（由本机 pnpm 配置决定，不纳入版本管理）
+.pnpm-store
+
+# ---------------- 编辑器与系统 ----------------
+.DS_Store
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# ---------------- 不公开的内容 ----------------
+# pro/ 是视觉风格提示词，rule.md 是给 AI 的开发指南，都不属于项目源码
+pro/
+rule.md
+
+# ---------------- Capacitor ----------------
+# 安卓工程已经过定制（图标、权限、主题），需要纳入版本管理；
+# 它自带的 android/.gitignore 会忽略 build/、local.properties、签名文件与拷贝进来的 web 资源。
+# iOS 平台暂不使用，继续保持忽略。
+ios
+
+# ---------------- 日志 ----------------
+*.log
+npm-debug.log*

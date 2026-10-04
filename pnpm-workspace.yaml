@@ -1,0 +1,15 @@
+# pnpm settings (pnpm 11 stores build-script allowlist and some settings here).
+#
+# nodeLinker=hoisted: produce a flat node_modules. The project must work both in
+# the browser dev server and inside a Capacitor APK, and a flat layout is the most
+# compatible with vue-tsc / vite / editor plugins on Windows (the default symlinked
+# layout breaks module resolution for some tools here).
+nodeLinker: hoisted
+
+# The esbuild platform binary comes from the optional dependency
+# @esbuild/win32-x64, and vue-demi defaults to the Vue 3 entry, so neither
+# package needs to run an install script. Declared explicitly as false so pnpm
+# does not exit with ERR_PNPM_IGNORED_BUILDS.
+allowBuilds:
+  esbuild: false
+  vue-demi: false
