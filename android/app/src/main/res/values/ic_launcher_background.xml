@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 自适应图标背景色：孟菲斯米白 -->
+<resources>
+    <color name="ic_launcher_background">#FEF9EF</color>
+</resources>

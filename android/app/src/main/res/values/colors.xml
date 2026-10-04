@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用配色：沿用孟菲斯风格的撞色令牌 -->
+<resources>
+    <color name="colorPrimary">#FF6B6B</color>
+    <color name="colorPrimaryDark">#101010</color>
+    <color name="colorAccent">#48DBFB</color>
+    <!-- 启动画面底色（米白，与应用画布一致） -->
+    <color name="splashBackground">#FEF9EF</color>
+</resources>
