@@ -1,0 +1,199 @@
+/**
+ * 设计令牌：孟菲斯（Memphis）风格。
+ * 高饱和撞色 + 纯黑粗描边 + 无模糊硬阴影 + 直角。
+ * 深色模式在 body.theme-dark 下覆盖画布、墨色与文字，撞色保持不变。
+ */
+
+:root {
+  /* ---------------- 画布与墨色 ---------------- */
+
+  /** 页面底色（孟菲斯米白） */
+  --m-canvas: #fef9ef;
+  /** 卡片/控件表面色 */
+  --m-surface: #ffffff;
+  /** 沉浸区域（如画布、次级底） */
+  --m-surface-2: #f6efe1;
+  /** 纯黑：撞色块上的文字、始终为黑 */
+  --m-ink: #101010;
+  /** 描边与硬阴影的颜色（深色模式会翻转成米色） */
+  --m-line-color: #101010;
+  /** 遮罩 */
+  --m-scrim: rgba(16, 16, 16, 0.55);
+
+  /* ---------------- 撞色（风格指南指定） ---------------- */
+
+  /** 主撞色 1 · 红 */
+  --m-red: #ff6b6b;
+  /** 主撞色 2 · 黄 */
+  --m-yellow: #feca57;
+  /** 主撞色 3 · 青 */
+  --m-cyan: #48dbfb;
+  /** 主撞色 4 · 粉 */
+  --m-pink: #ff9ff3;
+  /** 主撞色 5 · 绿 */
+  --m-green: #1dd1a1;
+
+  /** 撞色在浅色底上的文字色（用于彩色徽章上的字，保证对比度） */
+  --m-on-accent: #101010;
+
+  /* ---------------- 文字 ---------------- */
+
+  /** 正文主色 */
+  --m-text: #101010;
+  /** 次级文字（在米白底上对比度约 10:1，满足 WCAG AA） */
+  --m-text-soft: #3d3a34;
+  /** 弱化文字 */
+  --m-text-muted: #6b665c;
+  /**
+   * 墨色（纯黑）实心块上的文字色。
+   * 墨色块在两种主题下都是黑的，所以这个值不随主题变化。
+   */
+  --m-on-ink: #fef9ef;
+
+  /* ---------------- 语义色 ---------------- */
+
+  /** 危险 / 删除 */
+  --m-danger: #ff6b6b;
+  /** 成功 */
+  --m-success: #1dd1a1;
+  /** 警告 / 待处理 */
+  --m-warn: #feca57;
+  /** 焦点环 */
+  --m-focus: #48dbfb;
+
+  /* ---------------- 描边 ---------------- */
+
+  /** 描边宽度（手机 3px，≥700px 提升到 4px，禁止细边框） */
+  --m-bw: 3px;
+  /** 强调描边宽度 */
+  --m-bw-thick: 5px;
+  /** 完整描边简写 */
+  --m-line: var(--m-bw) solid var(--m-line-color);
+  /** 强调描边简写 */
+  --m-line-thick: var(--m-bw-thick) solid var(--m-line-color);
+
+  /* ---------------- 硬阴影（无模糊） ---------------- */
+
+  /** 微硬阴影 */
+  --m-shadow-xs: 2px 2px 0 0 var(--m-line-color);
+  /** 小硬阴影 */
+  --m-shadow-sm: 3px 3px 0 0 var(--m-line-color);
+  /** 默认硬阴影 */
+  --m-shadow: 5px 5px 0 0 var(--m-line-color);
+  /** 大硬阴影 */
+  --m-shadow-lg: 8px 8px 0 0 var(--m-line-color);
+  /** 特大硬阴影 */
+  --m-shadow-xl: 12px 12px 0 0 var(--m-line-color);
+  /** hover 时「增大」的阴影（禁止项要求 hover 不得朝阴影方向位移并缩小阴影） */
+  --m-shadow-hover: 9px 9px 0 0 var(--m-line-color);
+
+  /* ---------------- 圆角：孟菲斯用直角 ---------------- */
+
+  /** 直角 */
+  --m-radius: 0;
+  /** 胶囊（用于 chip、徽章） */
+  --m-radius-pill: 999px;
+
+  /* ---------------- 间距（8pt 网格 + 桌面加大留白） ---------------- */
+
+  --m-1: 4px;
+  --m-2: 8px;
+  --m-3: 12px;
+  --m-4: 16px;
+  --m-5: 20px;
+  --m-6: 24px;
+  --m-7: 32px;
+  --m-8: 40px;
+  --m-9: 56px;
+  --m-10: 72px;
+
+  /* ---------------- 字号：clamp 流式，手机到桌面平滑过渡 ---------------- */
+
+  /** 首页大标题 */
+  --m-fs-display: clamp(1.75rem, 1.05rem + 2.9vw, 3.25rem);
+  /** 一级标题 */
+  --m-fs-h1: clamp(1.375rem, 1.05rem + 1.4vw, 2rem);
+  /** 二级标题 */
+  --m-fs-h2: clamp(1.125rem, 1rem + 0.7vw, 1.5rem);
+  /** 三级标题 */
+  --m-fs-h3: clamp(1rem, 0.95rem + 0.3vw, 1.125rem);
+  /** 正文 */
+  --m-fs-body: clamp(0.9375rem, 0.9rem + 0.2vw, 1rem);
+  /** 小字 */
+  --m-fs-sm: 0.8125rem;
+  /** 极小字 */
+  --m-fs-xs: 0.75rem;
+
+  /* ---------------- 字体 ---------------- */
+
+  /** 正文：系统无衬线栈（离线可用，中文优先苹方/雅黑） */
+  --m-font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI Variable Text', 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', 'Noto Sans SC', 'Source Han Sans SC',
+    sans-serif;
+  /** 编号、数字：等宽，便于对齐 */
+  --m-font-mono: ui-monospace, 'Cascadia Mono', 'SFMono-Regular', Menlo, Consolas, 'Liberation Mono', monospace;
+
+  /** 标题字重（系统栈下的 Black 级别） */
+  --m-weight-black: 900;
+  /** 强调字重 */
+  --m-weight-bold: 700;
+  /** 正文字重 */
+  --m-weight-body: 500;
+
+  /* ---------------- 动效：干脆的波普玩具感 ---------------- */
+
+  /** 统一时长 */
+  --m-dur: 150ms;
+  /** 统一缓动（禁止 bounce / elastic） */
+  --m-ease: cubic-bezier(0.2, 0.75, 0.25, 1);
+  /** 完整过渡简写 */
+  --m-transition: all var(--m-dur) var(--m-ease);
+
+  /* ---------------- 布局 ---------------- */
+
+  /** 桌面端左侧导航栏宽度（<1024px 为 0，改用底部导航） */
+  --m-rail: 0px;
+  /** 底部导航高度（移动端） */
+  --m-nav-h: 68px;
+  /** 页头高度 */
+  --m-header-h: 60px;
+  /** 内容最大宽度 */
+  --m-container: 1200px;
+  /** 阅读型内容最大宽度（表单、详情） */
+  --m-reading: 760px;
+  /** 安全区 */
+  --m-safe-t: env(safe-area-inset-top, 0px);
+  --m-safe-b: env(safe-area-inset-bottom, 0px);
+}
+
+/* 桌面端：描边加粗，留白加大，切到左侧导航 */
+@media (min-width: 700px) {
+  :root {
+    --m-bw: 4px;
+    --m-header-h: 68px;
+  }
+}
+
+@media (min-width: 1024px) {
+  :root {
+    --m-rail: 240px;
+    --m-header-h: 76px;
+    --m-nav-h: 0px;
+  }
+}
+
+/* ---------------- 深色模式：画布转黑，描边与硬阴影转米色，撞色不变 ---------------- */
+
+body.theme-dark {
+  --m-canvas: #101010;
+  --m-surface: #1c1a17;
+  --m-surface-2: #262320;
+  --m-line-color: #fef9ef;
+  --m-scrim: rgba(0, 0, 0, 0.7);
+
+  --m-text: #fef9ef;
+  --m-text-soft: #ddd5c6;
+  --m-text-muted: #a8a093;
+
+  --m-focus: #feca57;
+}

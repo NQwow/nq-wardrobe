@@ -1,0 +1,1214 @@
+/**
+ * 全局样式：reset、排版、页面骨架、孟菲斯组件库（卡片 / 按钮 / 表单 / 徽章）、
+ * 几何装饰与图案、动效与无障碍。组件内部只写自己特有的排版，通用外观走这里。
+ */
+
+/* ============================ 1. Reset ============================ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* 移动端浏览器地址栏伸缩时不要跳动 */
+  -webkit-text-size-adjust: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+}
+
+body {
+  background-color: var(--m-canvas);
+  color: var(--m-text);
+  font-family: var(--m-font-sans);
+  font-size: var(--m-fs-body);
+  font-weight: var(--m-weight-body);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overscroll-behavior-y: none;
+  transition: background-color var(--m-dur) var(--m-ease), color var(--m-dur) var(--m-ease);
+}
+
+#app {
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+p,
+figure,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+input,
+textarea,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+hr {
+  border: none;
+  border-top: var(--m-line);
+  margin: 0;
+}
+
+/* 可见焦点环：孟菲斯用青色实心偏移环，不用细描边 */
+:focus-visible {
+  outline: var(--m-bw) solid var(--m-focus);
+  outline-offset: 2px;
+}
+
+/* ============================ 2. 排版 ============================ */
+
+/**
+ * 大标题：Black 字重 + 收紧字距，孟菲斯的粗壮感。
+ */
+.m-display,
+.m-h1,
+.m-h2,
+.m-h3 {
+  font-weight: var(--m-weight-black);
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  color: var(--m-text);
+  text-wrap: balance;
+}
+
+.m-display {
+  font-size: var(--m-fs-display);
+  line-height: 1.02;
+}
+
+.m-h1 {
+  font-size: var(--m-fs-h1);
+}
+
+.m-h2 {
+  font-size: var(--m-fs-h2);
+}
+
+.m-h3 {
+  font-size: var(--m-fs-h3);
+  letter-spacing: -0.01em;
+}
+
+/** 正文段落：限制行宽在 68 个字符内 */
+.m-prose {
+  max-width: 68ch;
+  color: var(--m-text-soft);
+  line-height: 1.7;
+}
+
+/** 说明性小字 */
+.m-caption {
+  font-size: var(--m-fs-sm);
+  color: var(--m-text-muted);
+  line-height: 1.5;
+}
+
+/** 编号、数字 */
+.m-mono {
+  font-family: var(--m-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+/**
+ * 分区标题：左侧一块撞色方块 + 粗体标题。
+ * 刻意不用「小号大写字距眉标」，符合风格自检清单。
+ */
+.m-section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--m-3);
+  font-size: var(--m-fs-h3);
+  font-weight: var(--m-weight-black);
+  letter-spacing: -0.01em;
+  color: var(--m-text);
+}
+
+.m-section-title::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  background-color: var(--m-title-accent, var(--m-red));
+}
+
+/** 文字色彩工具 */
+.m-text-soft {
+  color: var(--m-text-soft);
+}
+
+.m-text-muted {
+  color: var(--m-text-muted);
+}
+
+.m-text-danger {
+  color: var(--m-danger);
+}
+
+.m-text-on-accent {
+  color: var(--m-on-accent);
+}
+
+/** 彩色文字（Pop Swap 用） */
+.m-pop {
+  transition: color var(--m-dur) var(--m-ease);
+}
+
+/* ============================ 3. 页面骨架 ============================ */
+
+/**
+ * 页面容器：移动端给底部导航留位，桌面端给左侧导航栅留位。
+ */
+.page {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-left: var(--m-rail);
+  padding-bottom: calc(var(--m-nav-h) + var(--m-safe-b) + var(--m-6));
+  transition: padding-left var(--m-dur) var(--m-ease);
+}
+
+.page--with-header {
+  padding-top: calc(var(--m-header-h) + var(--m-safe-t));
+}
+
+@media (min-width: 1024px) {
+  .page {
+    padding-bottom: var(--m-9);
+  }
+}
+
+/** 页面主体：居中 + 桌面加大留白 */
+.page__body {
+  width: 100%;
+  max-width: var(--m-container);
+  margin: 0 auto;
+  padding: var(--m-4);
+}
+
+@media (min-width: 700px) {
+  .page__body {
+    padding: var(--m-6) var(--m-7);
+  }
+}
+
+@media (min-width: 1024px) {
+  .page__body {
+    padding: var(--m-7) var(--m-8) var(--m-9);
+  }
+}
+
+/** 阅读型页面（表单、详情）收窄内容列 */
+.page--narrow .page__body {
+  max-width: var(--m-reading);
+}
+
+/** 通用容器 */
+.m-container {
+  width: 100%;
+  max-width: var(--m-container);
+  margin: 0 auto;
+}
+
+/** 纵向堆叠 */
+.m-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-4);
+}
+
+.m-stack--tight {
+  gap: var(--m-2);
+}
+
+.m-stack--loose {
+  gap: var(--m-6);
+}
+
+/** 横向排列（可换行） */
+.m-row {
+  display: flex;
+  align-items: center;
+  gap: var(--m-3);
+  flex-wrap: wrap;
+}
+
+.m-row--between {
+  justify-content: space-between;
+}
+
+/* ============================ 4. 孟菲斯卡片 ============================ */
+
+/**
+ * 卡片：粗黑描边 + 硬阴影 + 直角。
+ * hover 时阴影变大（禁止项：不得朝阴影方向位移并缩小阴影），
+ * 内部几何装饰各自向不同方向漂移，标题做 Pop Swap 撞色反转。
+ */
+.m-card {
+  position: relative;
+  background-color: var(--m-surface);
+  border: var(--m-line);
+  box-shadow: var(--m-shadow);
+  border-radius: var(--m-radius);
+  transition: box-shadow var(--m-dur) var(--m-ease), border-color var(--m-dur) var(--m-ease),
+    background-color var(--m-dur) var(--m-ease);
+}
+
+/** 平板及以上的悬停反馈（触屏不做 hover，避免粘滞） */
+@media (hover: hover) and (pointer: fine) {
+  .m-card:hover {
+    box-shadow: var(--m-shadow-hover);
+  }
+
+  .m-card:hover .m-pop {
+    color: var(--m-pop, var(--m-red));
+  }
+}
+
+/**
+ * 点击反馈：整体下沉贴地。
+ * 只给「整块可点」的卡片加 .m-card--press，避免点容器卡片里的按钮时整块跟着抖。
+ */
+.m-card--press {
+  cursor: pointer;
+}
+
+.m-card--press:active {
+  transform: translate(3px, 3px);
+  box-shadow: var(--m-shadow-xs);
+}
+
+/** 内边距档位 */
+.m-card--pad {
+  padding: var(--m-4);
+}
+
+@media (min-width: 700px) {
+  .m-card--pad {
+    padding: var(--m-5);
+  }
+}
+
+@media (min-width: 1024px) {
+  .m-card--pad {
+    padding: var(--m-6);
+  }
+}
+
+/** 平铺面板：只有描边，没有阴影，用于分区包裹 */
+.m-panel {
+  background-color: var(--m-surface);
+  border: var(--m-line);
+  border-radius: var(--m-radius);
+}
+
+/** 彩色方块标题条 */
+.m-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--m-2);
+  padding: var(--m-2) var(--m-3);
+  background-color: var(--m-strip-color, var(--m-yellow));
+  color: var(--m-on-accent);
+  border: var(--m-line);
+  font-weight: var(--m-weight-black);
+  font-size: var(--m-fs-sm);
+}
+
+/* ============================ 5. 孟菲斯按钮 ============================ */
+
+/**
+ * 按钮：粗描边 + 硬阴影。
+ * hover 换撞色并「增大」阴影（禁止项要求），active 完全贴地。
+ */
+.m-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-2);
+  padding: var(--m-3) var(--m-5);
+  min-height: 44px;
+  border: var(--m-line);
+  border-radius: var(--m-radius);
+  background-color: var(--m-btn-bg, var(--m-yellow));
+  color: var(--m-btn-ink, var(--m-on-accent));
+  font-family: var(--m-font-sans);
+  font-weight: var(--m-weight-black);
+  font-size: var(--m-fs-body);
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  text-align: center;
+  box-shadow: var(--m-shadow-sm);
+  transition: var(--m-transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-btn:hover:not(:disabled) {
+    background-color: var(--m-btn-bg-hover, var(--m-red));
+    /* hover 时底色一律换成撞色，文字随之改用墨色，保证对比度 */
+    color: var(--m-on-accent);
+    box-shadow: var(--m-shadow-lg);
+  }
+}
+
+/* 玩具按键：按下完全贴地 */
+.m-btn:active:not(:disabled) {
+  transform: translate(5px, 5px);
+  box-shadow: none;
+}
+
+.m-btn:disabled {
+  cursor: not-allowed;
+  background-color: var(--m-surface-2);
+  color: var(--m-text-muted);
+  box-shadow: var(--m-shadow-xs);
+  opacity: 1;
+}
+
+/* 尺寸 */
+.m-btn--sm {
+  padding: var(--m-2) var(--m-3);
+  min-height: 36px;
+  font-size: var(--m-fs-sm);
+  box-shadow: var(--m-shadow-xs);
+}
+
+.m-btn--lg {
+  padding: var(--m-4) var(--m-6);
+  min-height: 52px;
+  font-size: var(--m-fs-h3);
+}
+
+.m-btn--block {
+  display: flex;
+  width: 100%;
+}
+
+/* 变体：撞色（只定义底色与 hover 底色） */
+.m-btn--red {
+  --m-btn-bg: var(--m-red);
+  --m-btn-bg-hover: var(--m-pink);
+}
+
+.m-btn--yellow {
+  --m-btn-bg: var(--m-yellow);
+  --m-btn-bg-hover: var(--m-green);
+}
+
+.m-btn--cyan {
+  --m-btn-bg: var(--m-cyan);
+  --m-btn-bg-hover: var(--m-yellow);
+}
+
+.m-btn--pink {
+  --m-btn-bg: var(--m-pink);
+  --m-btn-bg-hover: var(--m-cyan);
+}
+
+.m-btn--green {
+  --m-btn-bg: var(--m-green);
+  --m-btn-bg-hover: var(--m-yellow);
+}
+
+/** 白底次要按钮：只覆盖底色与文字色，hover 仍换撞色（必须放在 tone 之后） */
+.m-btn--outline {
+  --m-btn-bg: var(--m-surface);
+  --m-btn-ink: var(--m-text);
+}
+
+/** 无阴影的轻量按钮 */
+.m-btn--flat {
+  box-shadow: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-btn--flat:hover:not(:disabled) {
+    box-shadow: none;
+  }
+}
+
+/** 纯文字按钮 */
+.m-btn--text {
+  --m-btn-ink: var(--m-text);
+  border-color: transparent;
+  background-color: transparent;
+  box-shadow: none;
+  padding-left: var(--m-2);
+  padding-right: var(--m-2);
+  min-height: 36px;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-btn--text:hover:not(:disabled) {
+    background-color: transparent;
+    box-shadow: none;
+    color: var(--m-red);
+    text-decoration: underline;
+    text-decoration-thickness: 3px;
+    text-underline-offset: 4px;
+  }
+}
+
+.m-btn--text:active:not(:disabled) {
+  transform: none;
+}
+
+/* ============================ 6. 孟菲斯表单控件 ============================ */
+
+/**
+ * 输入框外壳：粗描边，聚焦时「长出」硬阴影。
+ */
+.m-field {
+  display: flex;
+  align-items: center;
+  gap: var(--m-2);
+  width: 100%;
+  background-color: var(--m-surface);
+  border: var(--m-line);
+  border-radius: var(--m-radius);
+  transition: var(--m-transition);
+}
+
+.m-field:focus-within {
+  box-shadow: var(--m-shadow);
+  border-color: var(--m-focus);
+}
+
+/** 错误态：改用红色描边并以图标/文字同时表达（不只靠颜色） */
+.m-field--error {
+  border-color: var(--m-danger);
+  background-color: var(--m-surface);
+}
+
+.m-field--error:focus-within {
+  border-color: var(--m-danger);
+  box-shadow: 5px 5px 0 0 var(--m-danger);
+}
+
+.m-field--disabled {
+  background-color: var(--m-surface-2);
+}
+
+/** 原生控件：去掉系统外观，保持直角 */
+.m-input,
+.m-textarea,
+.m-select {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  padding: var(--m-3) var(--m-4);
+  background-color: transparent;
+  border: none;
+  border-radius: var(--m-radius);
+  outline: none;
+  color: var(--m-text);
+  font-family: var(--m-font-sans);
+  font-weight: var(--m-weight-body);
+}
+
+.m-textarea {
+  display: block;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.m-select {
+  appearance: none;
+  cursor: pointer;
+  padding-right: var(--m-9);
+}
+
+.m-input::placeholder,
+.m-textarea::placeholder {
+  color: var(--m-text-muted);
+  font-weight: 400;
+}
+
+/** 字段标签 */
+.m-label {
+  display: block;
+  font-size: var(--m-fs-sm);
+  font-weight: var(--m-weight-bold);
+  color: var(--m-text);
+  letter-spacing: 0.01em;
+}
+
+/** 必填星号 */
+.m-label__required {
+  color: var(--m-danger);
+  margin-left: 2px;
+}
+
+/** 错误提示：带一个小方块做非颜色编码 */
+.m-error {
+  display: flex;
+  align-items: center;
+  gap: var(--m-1);
+  font-size: var(--m-fs-xs);
+  font-weight: var(--m-weight-bold);
+  color: var(--m-danger);
+}
+
+.m-error::before {
+  content: '!';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  background-color: var(--m-danger);
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: var(--m-weight-black);
+}
+
+/** 辅助说明 */
+.m-hint {
+  font-size: var(--m-fs-xs);
+  color: var(--m-text-muted);
+}
+
+/* ============================ 7. 徽章 / 胶囊 / 标签 ============================ */
+
+/** 胶囊 chip（筛选、标签选择） */
+.m-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m-2);
+  flex-shrink: 0;
+  padding: var(--m-2) var(--m-4);
+  min-height: 38px;
+  background-color: var(--m-surface);
+  color: var(--m-text);
+  border: var(--m-line);
+  border-radius: var(--m-radius-pill);
+  font-size: var(--m-fs-sm);
+  font-weight: var(--m-weight-bold);
+  white-space: nowrap;
+  transition: var(--m-transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-chip:hover {
+    background-color: var(--m-yellow);
+    color: var(--m-on-accent);
+  }
+}
+
+.m-chip:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
+}
+
+/** 选中态：实心撞色块 + 黑色对勾（不只靠颜色区分） */
+.m-chip--active {
+  background-color: var(--m-chip-active, var(--m-cyan));
+  color: var(--m-on-accent);
+  box-shadow: var(--m-shadow-xs);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-chip--active:hover {
+    background-color: var(--m-chip-active, var(--m-cyan));
+  }
+}
+
+/** 方形徽章（状态、计数） */
+.m-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--m-1);
+  padding: 3px var(--m-3);
+  border: var(--m-line);
+  border-radius: var(--m-radius-pill);
+  background-color: var(--m-badge-bg, var(--m-green));
+  color: var(--m-on-accent);
+  font-size: var(--m-fs-xs);
+  font-weight: var(--m-weight-black);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.m-badge--red {
+  --m-badge-bg: var(--m-red);
+}
+
+.m-badge--yellow {
+  --m-badge-bg: var(--m-yellow);
+}
+
+.m-badge--cyan {
+  --m-badge-bg: var(--m-cyan);
+}
+
+.m-badge--pink {
+  --m-badge-bg: var(--m-pink);
+}
+
+.m-badge--green {
+  --m-badge-bg: var(--m-green);
+}
+
+.m-badge--ink {
+  --m-badge-bg: var(--m-ink);
+  color: var(--m-on-ink);
+}
+
+/* ============================ 8. 几何装饰 ============================ */
+
+/**
+ * 几何装饰基类：形状 + 撞色 + 尺寸 + 漂移方向。
+ * 放在 .m-card 内时，hover 会各自向不同方向位移或旋转（Playful Chaos）。
+ */
+.m-geo {
+  display: block;
+  flex: 0 0 auto;
+  pointer-events: none;
+  /** 默认尺寸，必须写在各尺寸档位之前，否则会覆盖它们 */
+  --m-geo-size: 16px;
+  transition: transform var(--m-dur) var(--m-ease);
+}
+
+/* 尺寸 */
+.m-geo--xs {
+  --m-geo-size: 10px;
+}
+
+.m-geo--sm {
+  --m-geo-size: 16px;
+}
+
+.m-geo--md {
+  --m-geo-size: 24px;
+}
+
+.m-geo--lg {
+  --m-geo-size: 36px;
+}
+
+.m-geo--xl {
+  --m-geo-size: 56px;
+}
+
+/* 形状 */
+.m-geo--circle {
+  width: var(--m-geo-size);
+  height: var(--m-geo-size);
+  border-radius: 50%;
+  background-color: var(--m-geo-color, var(--m-red));
+}
+
+.m-geo--ring {
+  width: var(--m-geo-size);
+  height: var(--m-geo-size);
+  border-radius: 50%;
+  border: max(3px, calc(var(--m-geo-size) / 5)) solid var(--m-geo-color, var(--m-cyan));
+  background-color: transparent;
+}
+
+.m-geo--square {
+  width: var(--m-geo-size);
+  height: var(--m-geo-size);
+  background-color: var(--m-geo-color, var(--m-yellow));
+}
+
+.m-geo--diamond {
+  width: calc(var(--m-geo-size) * 0.78);
+  height: calc(var(--m-geo-size) * 0.78);
+  background-color: var(--m-geo-color, var(--m-pink));
+  transform: rotate(45deg);
+}
+
+.m-geo--triangle {
+  width: 0;
+  height: 0;
+  border-left: calc(var(--m-geo-size) * 0.6) solid transparent;
+  border-right: calc(var(--m-geo-size) * 0.6) solid transparent;
+  border-bottom: calc(var(--m-geo-size) * 1.02) solid var(--m-geo-color, var(--m-green));
+}
+
+.m-geo--half {
+  width: var(--m-geo-size);
+  height: calc(var(--m-geo-size) / 2);
+  background-color: var(--m-geo-color, var(--m-red));
+  border-radius: var(--m-geo-size) var(--m-geo-size) 0 0;
+}
+
+.m-geo--cross {
+  position: relative;
+  width: var(--m-geo-size);
+  height: var(--m-geo-size);
+}
+
+.m-geo--cross::before,
+.m-geo--cross::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  background-color: var(--m-geo-color, var(--m-cyan));
+}
+
+.m-geo--cross::before {
+  width: 100%;
+  height: calc(var(--m-geo-size) / 3.4);
+}
+
+.m-geo--cross::after {
+  width: calc(var(--m-geo-size) / 3.4);
+  height: 100%;
+}
+
+/* 撞色 */
+.m-geo--c-red {
+  --m-geo-color: var(--m-red);
+}
+
+.m-geo--c-yellow {
+  --m-geo-color: var(--m-yellow);
+}
+
+.m-geo--c-cyan {
+  --m-geo-color: var(--m-cyan);
+}
+
+.m-geo--c-pink {
+  --m-geo-color: var(--m-pink);
+}
+
+.m-geo--c-green {
+  --m-geo-color: var(--m-green);
+}
+
+.m-geo--c-ink {
+  /* 用 --m-text 而不是 --m-ink：深色模式下墨色图形会看不见 */
+  --m-geo-color: var(--m-text);
+}
+
+/* 漂移方向：每个方向都不同，避免统一方向 */
+@media (hover: hover) and (pointer: fine) {
+  .m-card:hover .m-geo--orbit-1 {
+    transform: translate(12px, -9px) rotate(16deg);
+  }
+
+  .m-card:hover .m-geo--orbit-2 {
+    transform: translate(-11px, 10px) rotate(-20deg);
+  }
+
+  .m-card:hover .m-geo--orbit-3 {
+    transform: translate(8px, 13px) rotate(26deg);
+  }
+
+  .m-card:hover .m-geo--orbit-4 {
+    transform: translate(-14px, -8px) rotate(-14deg) scale(1.12);
+  }
+
+  .m-card:hover .m-geo--orbit-5 {
+    transform: translate(0, -14px) rotate(180deg);
+  }
+
+  /* 菱形自身已有 rotate(45deg)，这里把基础角度补回去 */
+  .m-card:hover .m-geo--diamond.m-geo--orbit-1 {
+    transform: rotate(45deg) translate(10px, -8px) rotate(16deg);
+  }
+
+  .m-card:hover .m-geo--diamond.m-geo--orbit-2 {
+    transform: rotate(45deg) translate(-9px, 9px) rotate(-20deg);
+  }
+
+  .m-card:hover .m-geo--diamond.m-geo--orbit-3 {
+    transform: rotate(45deg) translate(7px, 11px) rotate(26deg);
+  }
+
+  .m-card:hover .m-geo--diamond.m-geo--orbit-4 {
+    transform: rotate(45deg) translate(-11px, -7px) rotate(-14deg) scale(1.12);
+  }
+
+  .m-card:hover .m-geo--diamond.m-geo--orbit-5 {
+    transform: rotate(225deg) translate(0, -12px);
+  }
+}
+
+/** 静态装饰容器：绝对定位在卡片角落，不参与布局 */
+.m-geo-layer {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+/** 装饰角位：刻意用不对称偏移，避免过于规整 */
+.m-geo--at-tl {
+  position: absolute;
+  top: 12px;
+  left: 14px;
+}
+
+.m-geo--at-tr {
+  position: absolute;
+  top: 18px;
+  right: 12px;
+}
+
+.m-geo--at-bl {
+  position: absolute;
+  bottom: 14px;
+  left: 20px;
+}
+
+.m-geo--at-br {
+  position: absolute;
+  bottom: 12px;
+  right: 18px;
+}
+
+/* ============================ 9. 图案 ============================ */
+
+/**
+ * 点状 / 条纹 / 网格图案：用 currentColor，跟随文字颜色自动适配深浅模式。
+ * 只应放在空的装饰元素上，不要套在文字外层（mask 会裁剪内容）。
+ */
+.m-dots {
+  background-color: currentColor;
+  -webkit-mask-image: radial-gradient(circle at center, #000 1.5px, transparent 1.6px);
+  mask-image: radial-gradient(circle at center, #000 1.5px, transparent 1.6px);
+  -webkit-mask-size: 10px 10px;
+  mask-size: 10px 10px;
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+}
+
+.m-stripes {
+  background-color: currentColor;
+  -webkit-mask-image: repeating-linear-gradient(
+    45deg,
+    #000 0,
+    #000 3px,
+    transparent 3px,
+    transparent 9px
+  );
+  mask-image: repeating-linear-gradient(45deg, #000 0, #000 3px, transparent 3px, transparent 9px);
+}
+
+.m-grid-lines {
+  background-color: currentColor;
+  -webkit-mask-image: linear-gradient(#000 1.5px, transparent 1.5px),
+    linear-gradient(90deg, #000 1.5px, transparent 1.5px);
+  mask-image: linear-gradient(#000 1.5px, transparent 1.5px),
+    linear-gradient(90deg, #000 1.5px, transparent 1.5px);
+  -webkit-mask-size: 14px 14px;
+  mask-size: 14px 14px;
+}
+
+/** 波浪线：整条横贯的装饰带 */
+.m-wave {
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='10' viewBox='0 0 28 10'%3E%3Cpath d='M0 6 Q7 -1 14 6 T28 6' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='10' viewBox='0 0 28 10'%3E%3Cpath d='M0 6 Q7 -1 14 6 T28 6' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 28px 10px;
+  mask-size: 28px 10px;
+}
+
+/** 折线（锯齿）装饰带 */
+.m-zigzag {
+  background-color: currentColor;
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 10 L6 2 L12 10 L18 2 L24 10' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cpath d='M0 10 L6 2 L12 10 L18 2 L24 10' fill='none' stroke='%23000' stroke-width='2.6'/%3E%3C/svg%3E");
+  -webkit-mask-repeat: repeat-x;
+  mask-repeat: repeat-x;
+  -webkit-mask-size: 24px 12px;
+  mask-size: 24px 12px;
+}
+
+/** 装饰带通用尺寸 */
+.m-band {
+  height: 12px;
+  width: 100%;
+}
+
+.m-band--thick {
+  height: 18px;
+}
+
+/* ============================ 10. 列表行 ============================ */
+
+/**
+ * 设置/管理类页面的一行：左标签右值，整行可点。
+ * 行与行之间用粗描边分隔，符合「禁止细边框」。
+ */
+.m-row-item {
+  display: flex;
+  align-items: center;
+  gap: var(--m-4);
+  width: 100%;
+  padding: var(--m-4);
+  background-color: var(--m-surface);
+  border: none;
+  border-bottom: var(--m-line);
+  text-align: left;
+  transition: background-color var(--m-dur) var(--m-ease);
+}
+
+.m-row-item:last-child {
+  border-bottom: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .m-row-item:hover {
+    background-color: var(--m-yellow);
+  }
+
+  .m-row-item:hover .m-row-item__label,
+  .m-row-item:hover .m-row-item__value,
+  .m-row-item:hover .m-row-item__desc {
+    color: var(--m-on-accent);
+  }
+}
+
+.m-row-item:active {
+  background-color: var(--m-pink);
+}
+
+.m-row-item__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.m-row-item__label {
+  display: block;
+  font-weight: var(--m-weight-bold);
+  color: var(--m-text);
+}
+
+.m-row-item__desc {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--m-fs-xs);
+  color: var(--m-text-muted);
+}
+
+.m-row-item__value {
+  flex: 0 0 auto;
+  font-size: var(--m-fs-sm);
+  color: var(--m-text-soft);
+}
+
+/* ============================ 11. 工具类 ============================ */
+
+/**
+ * 触屏设备上把小型交互元素加到 44px，满足触摸目标尺寸建议。
+ */
+@media (pointer: coarse) {
+  .m-chip,
+  .m-btn--sm,
+  .m-row-item {
+    min-height: 44px;
+  }
+}
+
+/** 加载骨架 */
+.skeleton {
+  background-color: var(--m-surface-2);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    transparent 0,
+    transparent 6px,
+    var(--m-line-color) 6px,
+    var(--m-line-color) 7px
+  );
+  background-size: 200% 100%;
+  animation: m-skeleton 1.1s linear infinite;
+  opacity: 0.35;
+}
+
+@keyframes m-skeleton {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: -28px 0;
+  }
+}
+
+/** 横向滚动容器：隐藏滚动条但保留滚动 */
+.scroll-x {
+  display: flex;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+
+.scroll-x::-webkit-scrollbar {
+  display: none;
+}
+
+/** 单行截断 */
+.ellipsis {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/** 两行截断 */
+.ellipsis-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/** 屏幕阅读器专用 */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/** 只读信息块 */
+.m-fact {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--m-4);
+  padding: var(--m-3) 0;
+  border-bottom: 2px dashed var(--m-line-color);
+}
+
+.m-fact:last-child {
+  border-bottom: none;
+}
+
+.m-fact__label {
+  flex: 0 0 auto;
+  font-size: var(--m-fs-sm);
+  color: var(--m-text-muted);
+}
+
+.m-fact__value {
+  text-align: right;
+  font-weight: var(--m-weight-bold);
+  color: var(--m-text);
+  word-break: break-word;
+}
+
+/* 桌面端加大滚动条，符合粗描边语言 */
+@media (min-width: 1024px) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--m-line-color) transparent;
+  }
+}
+
+/* ============================ 12. 动效与无障碍 ============================ */
+
+/**
+ * 过渡动画（弹窗、Toast、页面切换）：只做位移与透明度，不用缩放弹跳。
+ */
+.m-fade-enter-active,
+.m-fade-leave-active {
+  transition: opacity var(--m-dur) var(--m-ease);
+}
+
+.m-fade-enter-from,
+.m-fade-leave-to {
+  opacity: 0;
+}
+
+.m-rise-enter-active,
+.m-rise-leave-active {
+  transition: transform var(--m-dur) var(--m-ease), opacity var(--m-dur) var(--m-ease);
+}
+
+.m-rise-enter-from,
+.m-rise-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+.m-sheet-enter-active,
+.m-sheet-leave-active {
+  transition: transform var(--m-dur) var(--m-ease);
+}
+
+.m-sheet-enter-from,
+.m-sheet-leave-to {
+  transform: translateY(100%);
+}
+
+/**
+ * 尊重「减少动态效果」：关闭漂移、骨架动画与过渡。
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .m-card:hover .m-geo,
+  .m-card:hover .m-geo--diamond {
+    transform: none;
+  }
+
+  .m-sheet-enter-from,
+  .m-sheet-leave-to,
+  .m-rise-enter-from,
+  .m-rise-leave-to {
+    transform: none;
+  }
+}
