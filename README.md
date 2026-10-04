@@ -9,13 +9,12 @@
 
 ## 快速开始
 
-依赖已经装好了，直接跑第 2 步就行。
 
 ```bash
-# 1. 安装依赖（首次或换机器时才需要）
+# 1. 安装依赖
 npm install
 
-# 2. 启动开发服务器，浏览器打开终端里输出的地址（默认 http://127.0.0.1:5173/）
+# 2. 启动开发服务器
 npm run dev
 
 # 3. 类型检查 + 生产构建
@@ -52,25 +51,6 @@ Pinia · Dexie.js（IndexedDB）· 原生 CSS + CSS 变量 · Capacitor 6（第�
 没有引入任何 UI 组件库，所有样式都是可读的原生 CSS。
 
 ---
-
-## 设计风格：孟菲斯（Memphis）
-
-界面遵循孟菲斯（Memphis）设计语言：
-
-- **撞色**：`#ff6b6b` 红 / `#feca57` 黄 / `#48dbfb` 青 / `#ff9ff3` 粉 / `#1dd1a1` 绿，
-  底色米白 `#fef9ef`，文字与描边用纯黑 `#101010`
-- **粗描边**：所有面板/控件 `3px`（桌面 `4px`）纯黑描边，一律直角，禁止细边框与灰色描边
-- **硬阴影**：`5px 5px 0 0` 这种零模糊偏移阴影；按钮 hover 时**换色并增大阴影**，按下时完全贴地
-- **几何装饰**：圆形、三角形、菱形、半圆、十字、点状/条纹/波浪/折线图案；
-  卡片 hover 时内部各装饰**朝不同方向**漂移或旋转（Playful Chaos）
-- **字体**：系统无衬线栈（离线可用，中文优先苹方 / 雅黑），标题用 `900` 字重 + 收紧字距；
-  编号与数字用等宽字体并对齐
-- **无 emoji**：所有图标都是 `AppIcon` 里的线性 SVG，几何装饰是 `AppGeo` 里的 CSS 图形
-
-设计令牌集中在 [`src/assets/styles/variables.css`](src/assets/styles/variables.css)（`--m-*`），
-可复用的孟菲斯组件库（`.m-card` / `.m-btn` / `.m-chip` / `.m-field` / `.m-row-item` / `.m-fact` /
-`.m-geo` / 图案类）集中在 [`src/assets/styles/global.css`](src/assets/styles/global.css)。
-组件自己只写特有排版，通用外观走这套类。
 
 ### 响应式
 
@@ -139,7 +119,7 @@ views / components  →  stores  →  services  →  repositories  →  db  → 
 - **预设标签**：首次启动自动写入品类 20 个、季节 4 个、颜色 13 个、风格 6 个、场合 6 个，
   共 49 个，并创建默认衣柜「我的衣柜」
 
-### 第二阶段预留（当前是可用骨架）
+### 第二阶段预留
 
 - **搭配模式**：8 个槽位画布 + 素材区选衣 + 保存为搭配；搭配详情页载入后回到画布继续编辑
 - **穿搭日记**：日记列表 + 新增表单 + 「很久没穿」列表；保存时会写入穿着记录并累加 `wearCount`
@@ -154,7 +134,7 @@ views / components  →  stores  →  services  →  repositories  →  db  → 
 
 ## 打包成安卓 APK
 
-**不需要域名、不需要服务器。** Capacitor 会把 `dist/` 里的网页资源整个打进 APK，
+ Capacitor 会把 `dist/` 里的网页资源整个打进 APK，
 应用启动时 WebView 通过本地 `https://localhost` 直接读 APK 内的文件，
 全程不联网；衣服数据依旧存在手机本地的 IndexedDB 里，卸载 App 才会清掉。
 
@@ -211,7 +191,7 @@ android/app/build/outputs/apk/release/app-release.apk
 
 ### 关于签名（想长期用 / 想出正式包再看）
 
-调试包用 Android 自动生成的调试密钥签名，自己装着玩完全够用。
+调试包用 Android 自动生成的调试密钥签名
 如果要用 `assembleRelease` 出正式包，需要自己生成一个密钥库并**妥善备份**——
 以后更新应用必须用同一个密钥，否则装不上（只能先卸载重装，数据会丢）：
 
@@ -227,9 +207,6 @@ android/app/build/outputs/apk/release/app-release.apk
   改包名会让已安装的旧版变成「另一个应用」，不要随便动。
 - 桌面图标与启动图是脚本生成的孟菲斯几何构成，分别在
   `android/app/src/main/res/mipmap-*/` 和 `drawable-*/splash.png`。
-- 权限只声明了 `INTERNET`（Capacitor 内部需要，实际不联网）与相册读取权限；没有申请相机。
-- `android/` 目录已经过定制，**要提交进版本库**；其中 `build/`、`local.properties`、
-  密钥库等由 [`android/.gitignore`](android/.gitignore) 负责忽略。
 
 ---
 
