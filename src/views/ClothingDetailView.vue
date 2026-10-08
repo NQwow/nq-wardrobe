@@ -18,8 +18,8 @@ import StatusBadge from '@/components/business/StatusBadge.vue';
 import type { SelectOption } from '@/components/base/types';
 import { useConfirm } from '@/composables/useConfirm';
 import { useToast } from '@/composables/useToast';
-import { CLOTHING_STATUS_LABEL, TAG_TYPES, TAG_TYPE_LABEL, type TagType } from '@/models';
-import { imageService, type ClothingDetail } from '@/services';
+import { CLOTHING_STATUS_LABEL, TAG_TYPES, TAG_TYPE_LABEL, type Outfit, type TagType } from '@/models';
+import { imageService, outfitService, type ClothingDetail } from '@/services';
 import { useClothingStore, useTagStore, useWardrobeStore } from '@/stores';
 import { formatDateTime, formatRelativeDay } from '@/utils/date';
 
@@ -47,6 +47,10 @@ const notFound = ref(false);
 const imageUrls = ref<Map<string, string>>(new Map());
 /** 当前轮播到第几张（从 0 开始） */
 const currentIndex = ref(0);
+/** 这件衣服出现在哪些搭配里（按搭配更新时间倒序，已过滤软删除） */
+const usedOutfits = ref<Outfit[]>([]);
+/** 搭配 id → 成员件数（搭配里一共放了几件衣服） */
+const outfitMemberCounts = ref<Map<string, number>>(new Map());
 
 /** 路由参数里的衣服 id（收窄为字符串） */
 const clothingId = computed<string>(() => {
@@ -123,6 +127,54 @@ function tagToneClass(color?: string): string {
 const busy = ref(false);
 
 /**
+ * 反查某件衣服被哪些搭配用过，并统计每个搭配的成员件数。
+ * 搭配列表来自 outfitService.listByClothing；成员件数再按搭配并行取详情，
+ * 不做串行等待（IndexedDB 本地读取，量级很小）。
+ * @param id 衣服 id
+ * @returns 搭配列表与「搭配 id → 成员件数」映射
+ */
+async function fetchOutfitUsage(
+  id: string
+): Promise<{ outfits: Outfit[]; counts: Map<string, number> }> {
+  const outfits = await outfitService.listByClothing(id);
+  const counts = new Map<string, number>();
+  if (!outfits.length) return { outfits, counts };
+
+  const details = await Promise.all(
+    outfits.map(async (outfit) => ({ id: outfit.id, detail: await outfitService.getDetail(outfit.id) }))
+  );
+  for (const entry of details) {
+    counts.set(entry.id, entry.detail?.items.length ?? 0);
+  }
+  return { outfits, counts };
+}
+
+/**
+ * 空的反查结果：搭配查询失败时降级使用，保证衣服详情本身照常展示。
+ * @returns 空搭配列表与空件数映射
+ */
+function emptyOutfitUsage(): { outfits: Outfit[]; counts: Map<string, number> } {
+  return { outfits: [], counts: new Map<string, number>() };
+}
+
+/**
+ * 取某个搭配的成员件数。
+ * @param outfitId 搭配 id
+ * @returns 成员件数；未查到时为 0
+ */
+function memberCountOf(outfitId: string): number {
+  return outfitMemberCounts.value.get(outfitId) ?? 0;
+}
+
+/**
+ * 跳到某个搭配的详情页。
+ * @param outfitId 搭配 id
+ */
+function goOutfit(outfitId: string): void {
+  void router.push({ name: 'outfit-detail', params: { id: outfitId } });
+}
+
+/**
  * 读取衣服详情并在图片加载后释放本地缓存的 objectURL。
  * @param id 衣服 id
  */
@@ -130,8 +182,21 @@ async function loadDetail(id: string): Promise<void> {
   releaseImages();
   loading.value = true;
   notFound.value = false;
+  usedOutfits.value = [];
+  outfitMemberCounts.value = new Map();
   try {
-    const result = await clothingStore.getDetail(id);
+    // 详情与「出现在哪些搭配里」并行查询，互不等待；
+    // 反查失败只降级成空列表 + 提示，不牵连衣服详情本身
+    const [result, usage] = await Promise.all([
+      clothingStore.getDetail(id),
+      fetchOutfitUsage(id).catch((error: unknown) => {
+        toast.error(error instanceof Error ? error.message : '搭配反查失败');
+        return emptyOutfitUsage();
+      })
+    ]);
+    usedOutfits.value = usage.outfits;
+    outfitMemberCounts.value = usage.counts;
+
     if (!result) {
       notFound.value = true;
       detail.value = undefined;
@@ -453,6 +518,27 @@ onUnmounted(() => {
             <h2 class="m-section-title">备注</h2>
             <p v-if="detail.clothing.note" class="m-prose detail__note">{{ detail.clothing.note }}</p>
             <p v-else class="m-caption">暂无备注</p>
+          </section>
+
+          <!-- 出现在这些搭配里：反查这件衣服被哪些搭配用过，点击进入搭配 -->
+          <section class="m-card m-card--pad detail__section">
+            <h2 class="m-section-title detail__used-title">出现在这些搭配里</h2>
+
+            <div v-if="usedOutfits.length" class="detail__used-list scroll-x">
+              <button
+                v-for="outfit in usedOutfits"
+                :key="outfit.id"
+                type="button"
+                class="m-card m-card--press detail__used-card"
+                @click="goOutfit(outfit.id)"
+              >
+                <span class="detail__used-name m-pop ellipsis">{{ outfit.name }}</span>
+                <span class="detail__used-meta m-mono">{{ memberCountOf(outfit.id) }} 件</span>
+              </button>
+            </div>
+
+            <!-- 加载期间整页都是骨架态，这块不会渲染，所以空态文案不会先闪一下 -->
+            <p v-else class="m-caption">这件衣服还没有被任何搭配使用</p>
           </section>
 
           <!-- 穿着与时间信息 -->
@@ -882,6 +968,44 @@ onUnmounted(() => {
 .detail__note {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+/* ---------------- 出现在这些搭配里 ---------------- */
+
+/* 反查分区用绿色方块，和「搭配」的既有配色保持一致 */
+.detail__used-title {
+  --m-title-accent: var(--m-green);
+}
+
+/* 横向滚动的搭配卡片；右/下留白给硬阴影，避免被滚动容器裁掉 */
+.detail__used-list {
+  gap: var(--m-4);
+  padding: var(--m-1) var(--m-6) var(--m-6) var(--m-1);
+}
+
+.detail__used-card {
+  flex: 0 0 auto;
+  width: 158px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--m-2);
+  padding: var(--m-3);
+  scroll-snap-align: start;
+  text-align: left;
+}
+
+.detail__used-name {
+  --m-pop: var(--m-cyan);
+  width: 100%;
+  font-size: var(--m-fs-sm);
+  font-weight: var(--m-weight-black);
+  letter-spacing: -0.01em;
+}
+
+.detail__used-meta {
+  font-size: var(--m-fs-xs);
+  color: var(--m-text-muted);
 }
 
 .detail__facts {
