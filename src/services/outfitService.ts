@@ -4,7 +4,7 @@
  * 说明：第一阶段不实现搭配页面，这里先把数据层逻辑备好，
  * 页面与画布交互留到第二阶段（TODO 见各方法注释）。
  */
-import { outfitRepo } from '@/repositories';
+import { clothingRepo, outfitRepo } from '@/repositories';
 import { createId } from '@/utils/id';
 import type { Outfit, OutfitItem, OutfitSlot } from '@/models';
 
@@ -16,6 +16,26 @@ export interface OutfitDetail {
   items: OutfitItem[];
 }
 
+/** 搭配项 + 衣服名，便于列表直接展示 */
+export interface OutfitItemDetail {
+  /** 槽位 */
+  slot: OutfitSlot;
+  /** 衣服 id */
+  clothingId: string;
+  /** 衣服名（衣服已被删除时为空串） */
+  name: string;
+  /** 衣服编号 */
+  code: string;
+}
+
+/** 搭配摘要：搭配本体 + 成员明细，用于已保存搭配列表 */
+export interface OutfitSummary {
+  /** 搭配本体 */
+  outfit: Outfit;
+  /** 成员明细，按槽位顺序排列 */
+  items: OutfitItemDetail[];
+}
+
 export const outfitService = {
   /**
    * 查询全部未删除搭配。
@@ -23,6 +43,48 @@ export const outfitService = {
    */
   async list(): Promise<Outfit[]> {
     return outfitRepo.list();
+  },
+
+  /**
+   * 查询全部搭配并带上成员明细（衣服名、编号），供列表直接展示。
+   * @returns 搭配摘要列表
+   */
+  async listSummaries(): Promise<OutfitSummary[]> {
+    const outfits = await outfitRepo.list();
+    if (!outfits.length) return [];
+
+    const allItems = await outfitRepo.listItemsByOutfits(outfits.map((item) => item.id));
+    const clothes = await clothingRepo.listByIds(Array.from(new Set(allItems.map((item) => item.clothingId))));
+    const clothingMap = new Map(clothes.map((item) => [item.id, item]));
+
+    return outfits.map((outfit) => ({
+      outfit,
+      items: allItems
+        .filter((item) => item.outfitId === outfit.id)
+        .sort((a, b) => a.sortOrder - b.sortOrder)
+        .map((item) => ({
+          slot: item.slot,
+          clothingId: item.clothingId,
+          name: clothingMap.get(item.clothingId)?.name ?? '',
+          code: clothingMap.get(item.clothingId)?.code ?? ''
+        }))
+    }));
+  },
+
+  /**
+   * 反查某件衣服出现在哪些搭配里。
+   * @param clothingId 衣服 id
+   * @returns 搭配列表（按更新时间倒序）
+   */
+  async listByClothing(clothingId: string): Promise<Outfit[]> {
+    const items = await outfitRepo.listItemsByClothing(clothingId);
+    const ids = Array.from(new Set(items.map((item) => item.outfitId)));
+    if (!ids.length) return [];
+
+    const outfits = await Promise.all(ids.map((id) => outfitRepo.getById(id)));
+    return outfits
+      .filter((item): item is Outfit => Boolean(item) && !item?.deletedAt)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   },
 
   /**
