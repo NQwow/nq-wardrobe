@@ -1,7 +1,7 @@
 {
   "name": "nq-wardrobe",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.3.0",
   "type": "module",
   "description": "nq的衣柜 —— 纯本地、单用户、离线优先的衣柜管理应用",
   "scripts": {
@@ -19,6 +19,8 @@
     "@capacitor/android": "^8.5.2",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.5.2",
+    "@capacitor/filesystem": "^8.1.4",
+    "@capacitor/share": "^8.0.3",
     "dexie": "^4.0.10",
     "pinia": "^2.2.6",
     "vue": "^3.5.13",

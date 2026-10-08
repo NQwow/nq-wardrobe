@@ -13,6 +13,7 @@ import AppToast from '@/components/base/AppToast.vue';
 import { useAndroidBackButton } from '@/composables/useAndroidBackButton';
 import { useToast } from '@/composables/useToast';
 import type { GeoColor, IconName } from '@/components/base/types';
+import { APP_VERSION } from '@/models';
 import { useSettingsStore, useTagStore } from '@/stores';
 
 /** 底部 / 侧边导航项 */
@@ -120,7 +121,7 @@ onUnmounted(() => {
 
       <div class="app-nav__foot">
         <span class="app-nav__foot-band m-zigzag" aria-hidden="true" />
-        <span class="app-nav__version m-mono">v0.1.0</span>
+        <span class="app-nav__version m-mono">v{{ APP_VERSION }}</span>
       </div>
     </nav>
 

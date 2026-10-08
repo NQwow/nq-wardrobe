@@ -135,6 +135,12 @@ export const SETTING_KEYS = {
 /** 默认应用名 */
 export const DEFAULT_APP_NAME = 'nq的衣柜';
 
+/**
+ * 应用版本号（「关于」分组与桌面端侧栏页脚共用，避免两处写不一样的数）。
+ * 发版时同步修改：这里、package.json、android/app/build.gradle 的 versionName / versionCode。
+ */
+export const APP_VERSION = '0.3.0';
+
 /** 默认 AI 配置 */
 export const DEFAULT_AI_CONFIG: AiConfig = {
   enabled: false,
