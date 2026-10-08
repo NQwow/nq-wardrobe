@@ -1,15 +1,14 @@
 /**
- * 日记 store：日记列表与新增。
- *
- * 说明：第一阶段只做占位页，store 先备好，日历视图留到第二阶段。
+ * 日记 store：日记列表、按月查询、详情与增删改。
  */
 import { defineStore } from 'pinia';
 import { computed, ref } from 'vue';
-import { diaryService, type DiaryDraft } from '@/services';
+import { diaryService, type DiaryDetail, type DiaryDraft } from '@/services';
+import { startOfDay } from '@/utils/date';
 import type { Clothing, DiaryEntry } from '@/models';
 
 export const useDiaryStore = defineStore('diary', () => {
-  /** 日记列表（按日期倒序） */
+  /** 全部日记（按日期倒序） */
   const list = ref<DiaryEntry[]>([]);
   /** "很久没穿"的衣服 */
   const longUnworn = ref<Clothing[]>([]);
@@ -18,6 +17,9 @@ export const useDiaryStore = defineStore('diary', () => {
 
   /** 日记总数 */
   const total = computed(() => list.value.length);
+
+  /** 日期（当天 0 点）→ 日记 的索引，日历与详情共用 */
+  const byDate = computed(() => new Map(list.value.map((entry) => [startOfDay(entry.date), entry])));
 
   /**
    * 加载日记列表与"很久没穿"统计。
@@ -34,7 +36,25 @@ export const useDiaryStore = defineStore('diary', () => {
   }
 
   /**
-   * 保存日记（同一天覆盖）。
+   * 读取日记详情（含关联搭配与衣服）。
+   * @param id 日记 id
+   * @returns 详情或 undefined
+   */
+  async function getDetail(id: string): Promise<DiaryDetail | undefined> {
+    return diaryService.getDetail(id);
+  }
+
+  /**
+   * 按日期取日记。
+   * @param timestamp 当天任意时刻的时间戳
+   * @returns 日记或 undefined
+   */
+  function findByDate(timestamp: number): DiaryEntry | undefined {
+    return byDate.value.get(startOfDay(timestamp));
+  }
+
+  /**
+   * 保存日记（同一天覆盖，因此修改走的是同一个方法）。
    * @param draft 日记草稿
    * @returns 保存后的日记
    */
@@ -53,5 +73,5 @@ export const useDiaryStore = defineStore('diary', () => {
     await load();
   }
 
-  return { list, longUnworn, loading, total, load, save, remove };
+  return { list, longUnworn, loading, total, byDate, load, getDetail, findByDate, save, remove };
 });
