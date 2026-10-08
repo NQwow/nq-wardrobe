@@ -74,8 +74,9 @@ function handleBack(): void {
   height: calc(var(--m-header-h) + var(--m-safe-t));
   padding-top: var(--m-safe-t);
   background-color: var(--m-surface);
-  border-bottom: var(--m-line);
-  box-shadow: 0 4px 0 0 var(--m-line-color);
+  /* 用外框专用分隔线色：深色模式下不会变成一条米白横线 */
+  border-bottom: var(--m-bw) solid var(--m-chrome-line);
+  box-shadow: 0 4px 0 0 var(--m-chrome-line);
   transition: left var(--m-dur) var(--m-ease);
 }
 

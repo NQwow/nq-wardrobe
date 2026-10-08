@@ -17,6 +17,11 @@
   --m-ink: #101010;
   /** 描边与硬阴影的颜色（深色模式会翻转成米色） */
   --m-line-color: #101010;
+  /**
+   * 「界面外框」的分隔线：页头下沿、底部导航上沿、桌面导航栅右侧。
+   * 深色模式下刻意不跟随 --m-line-color 翻转成米白，否则上下会出现两条刺眼白线。
+   */
+  --m-chrome-line: var(--m-line-color);
   /** 遮罩 */
   --m-scrim: rgba(16, 16, 16, 0.55);
 
@@ -189,6 +194,8 @@ body.theme-dark {
   --m-surface: #1c1a17;
   --m-surface-2: #262320;
   --m-line-color: #fef9ef;
+  /* 外框分隔线改用接近卡片的暖灰，避免页头与导航上下各出现一条白线 */
+  --m-chrome-line: #423c34;
   --m-scrim: rgba(0, 0, 0, 0.7);
 
   --m-text: #fef9ef;

@@ -13,7 +13,7 @@ import AppToast from '@/components/base/AppToast.vue';
 import { useAndroidBackButton } from '@/composables/useAndroidBackButton';
 import { useToast } from '@/composables/useToast';
 import type { GeoColor, IconName } from '@/components/base/types';
-import { useSettingsStore } from '@/stores';
+import { useSettingsStore, useTagStore } from '@/stores';
 
 /** 底部 / 侧边导航项 */
 interface NavItem {
@@ -49,6 +49,8 @@ const hasTab = computed(() => Boolean(activeTab.value));
 /** 系统主题监听的取消函数 */
 let stopThemeWatch: (() => void) | null = null;
 
+const tagStore = useTagStore();
+
 // 安卓实体返回键：应用内逐级返回，退到最外层才退出应用
 useAndroidBackButton();
 
@@ -59,6 +61,14 @@ onMounted(async () => {
     toast.error(error instanceof Error ? error.message : '设置读取失败');
   }
   stopThemeWatch = settingsStore.watchSystemTheme();
+
+  // 标签是全局小数据集（约 49 条），主界面的标签筛选面板、以及
+  // 「选中一级标签自动索引二级标签」都要用，这里统一预加载一次。
+  try {
+    await tagStore.load();
+  } catch (error) {
+    toast.error(error instanceof Error ? error.message : '标签加载失败');
+  }
 });
 
 onUnmounted(() => {
@@ -201,8 +211,9 @@ onUnmounted(() => {
   align-items: stretch;
   height: calc(var(--m-nav-h) + var(--m-safe-b));
   padding-bottom: var(--m-safe-b);
-  border-top: var(--m-line);
-  box-shadow: 0 -5px 0 0 var(--m-line-color);
+  /* 外框分隔线：深色模式下用暖灰，避免底部出现一条白线 */
+  border-top: var(--m-bw) solid var(--m-chrome-line);
+  box-shadow: 0 -5px 0 0 var(--m-chrome-line);
 }
 
 .app-nav__brand,
@@ -296,8 +307,8 @@ onUnmounted(() => {
     height: auto;
     padding: var(--m-6) var(--m-4) var(--m-5);
     border-top: none;
-    border-right: var(--m-line);
-    box-shadow: 5px 0 0 0 var(--m-line-color);
+    border-right: var(--m-bw) solid var(--m-chrome-line);
+    box-shadow: 5px 0 0 0 var(--m-chrome-line);
     display: flex;
     flex-direction: column;
     gap: var(--m-6);
@@ -308,7 +319,7 @@ onUnmounted(() => {
     align-items: center;
     gap: var(--m-3);
     padding-bottom: var(--m-5);
-    border-bottom: var(--m-line);
+    border-bottom: var(--m-bw) solid var(--m-chrome-line);
   }
 
   .app-nav__mark {
