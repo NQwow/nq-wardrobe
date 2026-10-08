@@ -1,7 +1,8 @@
-<!-- 搭配模式（孟菲斯风格）：8 槽位画布 + 按槽位切换的素材网格 + 已保存搭配横滑区。
+<!-- 搭配模式（孟菲斯风格）：8 行纵向槽位画布（同一槽位可叠穿多件）+ 按槽位品类筛选的素材网格
+     + 已保存搭配横滑区（可直接看到部件名、可删除）。
      手机端保持「上画布 / 下素材」单列，桌面端（≥1024px）改成左画布 / 右素材两栏。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import AppButton from '@/components/base/AppButton.vue';
 import AppEmpty from '@/components/base/AppEmpty.vue';
@@ -14,20 +15,27 @@ import AppTextarea from '@/components/base/AppTextarea.vue';
 import type { TabItem } from '@/components/base/types';
 import OutfitSlot from '@/components/business/OutfitSlot.vue';
 import PageHeader from '@/components/business/PageHeader.vue';
+import type { OutfitSlotClothing } from '@/components/business/types';
 import { useConfirm } from '@/composables/useConfirm';
 import { useToast } from '@/composables/useToast';
-import { OUTFIT_SLOT_LABEL, OUTFIT_SLOTS, type OutfitSlot as OutfitSlotKey } from '@/models';
-import { useClothingStore, useOutfitStore } from '@/stores';
+import {
+  OUTFIT_SLOT_CATEGORY,
+  OUTFIT_SLOT_LABEL,
+  OUTFIT_SLOTS,
+  type OutfitSlot as OutfitSlotKey
+} from '@/models';
+import type { OutfitItemDetail, OutfitSummary } from '@/services';
+import { useClothingStore, useOutfitStore, useTagStore } from '@/stores';
 import { formatDate } from '@/utils/date';
 
-/** 槽位中已选衣服的展示信息（与 OutfitSlot 组件的 clothing 属性保持一致） */
-interface SlotClothing {
-  /** 衣服 id */
-  id: string;
-  /** 衣服名字 */
-  name: string;
-  /** 主图缩略图地址 */
-  thumbnailUrl?: string;
+/** 已保存搭配卡片上按槽位分组的一行部件名 */
+interface SlotPartLine {
+  /** 槽位 key，同时用作列表 key */
+  slot: OutfitSlotKey;
+  /** 槽位展示文案 */
+  label: string;
+  /** 该槽位下的衣服名（衣服已被删除时用占位文案） */
+  names: string[];
 }
 
 const router = useRouter();
@@ -35,9 +43,12 @@ const toast = useToast();
 const confirmDialog = useConfirm();
 const outfitStore = useOutfitStore();
 const clothingStore = useClothingStore();
+const tagStore = useTagStore();
 
-/** 素材区当前槽位 key（AppTabs 的 v-model 只接受 string，用 activeSlot 收窄类型） */
+/** 素材区当前槽位 key（AppTabs 的 v-model 只接受 string，再用 activeSlot 收窄类型） */
 const activeSlotKey = ref<string>(OUTFIT_SLOTS[0]);
+/** 是否临时显示全部衣服：当前品类筛选为空时的兜底开关，切换槽位后重置 */
+const showAllMaterials = ref(false);
 /** 保存弹窗是否显示 */
 const saveModalVisible = ref(false);
 /** 保存弹窗里的搭配名 */
@@ -70,49 +81,87 @@ const activeSlot = computed<OutfitSlotKey>(() =>
   isOutfitSlot(activeSlotKey.value) ? activeSlotKey.value : OUTFIT_SLOTS[0]
 );
 
+/** 当前槽位对应的一级品类名；空数组表示不限品类（「其他」槽位） */
+const slotCategories = computed<string[]>(() => OUTFIT_SLOT_CATEGORY[activeSlot.value]);
+
+/** 按当前槽位品类筛选后的衣服（二级标签会回溯到父级品类） */
+const categoryMaterials = computed(() =>
+  clothingStore.items.filter((item) => tagStore.matchCategory(item.tagIds, slotCategories.value))
+);
+
+/** 素材区真正展示的衣服：默认只看当前品类，兜底开关打开时显示全部 */
+const materials = computed(() =>
+  showAllMaterials.value ? clothingStore.items : categoryMaterials.value
+);
+
+/** 素材区筛选说明文案：明确告诉用户现在能选哪一类衣服 */
+const filterHint = computed(() => {
+  const label = OUTFIT_SLOT_LABEL[activeSlot.value];
+  if (!slotCategories.value.length) return '「其他」不限品类，这里显示全部衣服';
+  if (showAllMaterials.value) return `已显示全部衣服，包含不属于「${label}」的衣服`;
+  return `只显示品类为「${label}」的衣服`;
+});
+
 /** 素材区 tab 项：key 用槽位，label 用槽位文案 */
 const slotTabs = computed<TabItem[]>(() =>
   OUTFIT_SLOTS.map((slot) => ({ key: slot, label: OUTFIT_SLOT_LABEL[slot] }))
 );
 
-/** 8 个槽位当前选中的衣服（供 OutfitSlot 展示，衣服被删除时为空） */
-const slotClothingMap = computed<Record<OutfitSlotKey, SlotClothing | null>>(() => {
-  const result = {} as Record<OutfitSlotKey, SlotClothing | null>;
-  for (const slot of OUTFIT_SLOTS) {
-    const clothingId = outfitStore.canvas[slot];
-    const item = clothingId ? clothingStore.findItem(clothingId) : undefined;
-    result[slot] = item
-      ? { id: item.clothing.id, name: item.clothing.name, thumbnailUrl: item.thumbnailUrl }
-      : null;
-  }
-  return result;
-});
-
-/** 当前槽位已选中的衣服 id（素材区高亮用） */
-const activeClothingId = computed(() => outfitStore.canvas[activeSlot.value]);
+/** 当前槽位已选中的衣服 id，供素材块高亮与选中标记使用 */
+const activeClothingIds = computed<string[]>(() => outfitStore.canvas[activeSlot.value]);
 
 /**
- * 点击画布槽位：把素材区切到该槽位，方便直接替换。
+ * 把槽位里已选的衣服 id 映射成缩略图展示数据。
+ * @param slot 槽位
+ * @returns 该槽位已选衣服（按叠穿顺序；衣服被删除时跳过）
+ */
+function slotClothes(slot: OutfitSlotKey): OutfitSlotClothing[] {
+  return outfitStore.canvas[slot].flatMap((clothingId) => {
+    const item = clothingStore.findItem(clothingId);
+    return item
+      ? [{ id: item.clothing.id, name: item.clothing.name, thumbnailUrl: item.thumbnailUrl }]
+      : [];
+  });
+}
+
+/**
+ * 把搭配的成员明细按槽位分组，供已保存卡片展示「上装：白衬衫、针织背心」。
+ * @param items 成员明细
+ * @returns 按画布槽位顺序排列的分组
+ */
+function slotPartLines(items: OutfitItemDetail[]): SlotPartLine[] {
+  return OUTFIT_SLOTS.flatMap((slot) => {
+    const names = items
+      .filter((item) => item.slot === slot)
+      .map((item) => item.name || '已删除的衣服');
+    return names.length ? [{ slot, label: OUTFIT_SLOT_LABEL[slot], names }] : [];
+  });
+}
+
+/**
+ * 点击画布槽位：把素材区切到该槽位，方便直接往里加衣服。
  * @param slot 被点击的槽位
  */
-function handleSlotSelect(slot: OutfitSlotKey): void {
+function selectSlot(slot: OutfitSlotKey): void {
   activeSlotKey.value = slot;
 }
 
 /**
- * 移除某个槽位上已选的衣服。
- * @param slot 槽位
- */
-function handleSlotClear(slot: OutfitSlotKey): void {
-  outfitStore.clearSlot(slot);
-}
-
-/**
- * 点击素材区衣服：填入当前槽位，再次点击同一件则取消。
+ * 点击素材里的衣服：加入当前槽位（已在槽位里则移除）。
  * @param clothingId 衣服 id
  */
-function handlePickClothing(clothingId: string): void {
+function pickClothing(clothingId: string): void {
   outfitStore.toggleSlot(activeSlot.value, clothingId);
+}
+
+/** 兜底开关打开：临时显示全部衣服，避免品类筛选为空时走进死胡同 */
+function showAllClothes(): void {
+  showAllMaterials.value = true;
+}
+
+/** 兜底开关关闭：回到只显示当前槽位品类 */
+function showCategoryOnly(): void {
+  showAllMaterials.value = false;
 }
 
 /** 打开保存弹窗，并把画布上的名字与备注回填到表单 */
@@ -124,7 +173,7 @@ function openSaveModal(): void {
 
 /** 清空画布（画布有内容时先二次确认） */
 async function handleClear(): Promise<void> {
-  if (outfitStore.canvasCount === 0) {
+  if (outfitStore.canvasEmpty) {
     toast.info('画布还是空的');
     return;
   }
@@ -143,13 +192,31 @@ async function handleClear(): Promise<void> {
   }
 }
 
+/** 从「编辑已保存搭配」另起一套：二次确认后清空画布并退出编辑态 */
+async function handleNewOutfit(): Promise<void> {
+  try {
+    const accepted = await confirmDialog.confirm({
+      title: '新建搭配',
+      message: '会清空画布上正在编辑的内容，另起一套新的搭配，确定继续吗？',
+      confirmText: '新建',
+      danger: true
+    });
+    if (!accepted) return;
+    outfitStore.clearCanvas();
+    showAllMaterials.value = false;
+    toast.success('已新建空白搭配');
+  } catch (error) {
+    toast.error(toErrorMessage(error));
+  }
+}
+
 /** 确认保存当前画布，成功后进入搭配详情 */
 async function handleSave(): Promise<void> {
   if (!draftName.value.trim()) {
     toast.error('请先给搭配起个名字');
     return;
   }
-  if (outfitStore.canvasCount === 0) {
+  if (outfitStore.canvasEmpty) {
     toast.error('请至少放入一件衣服');
     return;
   }
@@ -180,6 +247,28 @@ async function openSavedOutfit(id: string): Promise<void> {
   }
 }
 
+/**
+ * 删除一张已保存的搭配（二次确认 + 阻止冒泡，避免误触发卡片跳转）。
+ * @param summary 待删除的搭配摘要
+ * @param event 鼠标事件
+ */
+async function removeSavedOutfit(summary: OutfitSummary, event: MouseEvent): Promise<void> {
+  event.stopPropagation();
+  try {
+    const accepted = await confirmDialog.confirm({
+      title: '删除搭配',
+      message: `删除「${summary.outfit.name}」后无法恢复，确定删除吗？`,
+      confirmText: '删除',
+      danger: true
+    });
+    if (!accepted) return;
+    await outfitStore.remove(summary.outfit.id);
+    toast.success('搭配已删除');
+  } catch (error) {
+    toast.error(toErrorMessage(error));
+  }
+}
+
 /** 一件衣服都没有时的引导：去新增衣服 */
 async function goCreateClothing(): Promise<void> {
   try {
@@ -189,8 +278,12 @@ async function goCreateClothing(): Promise<void> {
   }
 }
 
-// TODO(第二阶段)：画布支持拖拽、同槽位放多件衣服、长按排序。
-// TODO(第二阶段)：按品类标签自动推荐槽位（上装衣服只出现在上装 tab），而不是现在这样全量展示。
+// 切换槽位后收起「显示全部」兜底，回到按品类筛选
+watch(activeSlot, () => {
+  showAllMaterials.value = false;
+});
+
+// TODO(第二阶段)：画布支持拖拽、长按排序、跨槽位移动。
 // TODO(第二阶段)：封面图选择（Outfit.coverImageId，默认取第一件衣服的主图）。
 // TODO(第二阶段)：顶部补「收藏」按钮（outfitStore.toggleFavorite / favorites）。
 // TODO(第二阶段)：画布有未保存内容时离开页面给出提示。
@@ -199,6 +292,7 @@ onMounted(async () => {
   try {
     await Promise.all([
       clothingStore.loaded ? Promise.resolve() : clothingStore.load(),
+      tagStore.list.length ? Promise.resolve() : tagStore.load(),
       outfitStore.load()
     ]);
   } catch (error) {
@@ -210,13 +304,23 @@ onMounted(async () => {
 <template>
   <div class="page page--with-header outfit-view">
     <PageHeader title="搭配" tone="pink">
+      <AppButton
+        v-if="outfitStore.editingId"
+        type="secondary"
+        tone="cyan"
+        size="md"
+        icon="plus"
+        @click="handleNewOutfit"
+      >
+        新建
+      </AppButton>
       <AppButton type="secondary" size="md" icon="close" @click="handleClear">清空</AppButton>
       <AppButton type="primary" tone="green" size="md" icon="check" @click="openSaveModal">保存</AppButton>
     </PageHeader>
 
     <div class="page__body outfit-view__body">
       <div class="outfit-view__layout">
-        <!-- 画布：8 个槽位（几何装饰放在 .m-card 内，hover 时各自漂移） -->
+        <!-- 画布：8 行纵向槽位（几何装饰放在 .m-card 内，hover 时各自漂移） -->
         <section class="outfit-view__canvas m-card m-card--pad">
           <div class="m-geo-layer" aria-hidden="true">
             <AppGeo shape="circle" color="yellow" size="lg" :orbit="1" at="tr" />
@@ -225,8 +329,9 @@ onMounted(async () => {
 
           <div class="outfit-view__canvas-head">
             <h2 class="m-section-title outfit-view__title">搭配画布</h2>
-            <span class="m-badge m-badge--red m-mono">
-              {{ outfitStore.canvasCount }} / {{ OUTFIT_SLOTS.length }}
+            <span class="m-badge m-badge--red m-mono">已选 {{ outfitStore.canvasCount }} 件</span>
+            <span v-if="outfitStore.editingId" class="m-badge m-badge--green outfit-view__editing">
+              编辑中：{{ outfitStore.canvasName || '未命名' }}
             </span>
           </div>
 
@@ -235,56 +340,89 @@ onMounted(async () => {
               v-for="slot in OUTFIT_SLOTS"
               :key="slot"
               :slot="slot"
-              :clothing="slotClothingMap[slot]"
+              :clothes="slotClothes(slot)"
               :active="slot === activeSlot"
-              @select="handleSlotSelect"
-              @clear="handleSlotClear"
+              @select="selectSlot"
+              @remove="outfitStore.removeFromSlot"
+              @clear="outfitStore.clearSlot"
             />
           </div>
+
+          <p class="m-caption outfit-view__canvas-hint">
+            点槽位名或虚线按钮切换素材区目标；同一槽位可放多件叠穿，点缩略图右上角移除单件。
+          </p>
         </section>
 
-        <!-- 素材区：横向 tab 切换槽位类型 + 该类型衣服网格 -->
+        <!-- 素材区：横向 tab 切换槽位类型 + 按该槽位品类筛选的衣服网格 -->
         <section class="outfit-view__picker m-panel">
           <div class="outfit-view__picker-body">
             <h2 class="m-section-title outfit-view__title outfit-view__title--cyan">素材</h2>
 
             <AppTabs v-model="activeSlotKey" :tabs="slotTabs" tone="pink" stretch />
 
-            <p class="m-hint">
-              点衣服填入「{{ OUTFIT_SLOT_LABEL[activeSlot] }}」，再点一次取消
-            </p>
-
-            <div v-if="clothingStore.items.length" class="outfit-view__grid">
-              <button
-                v-for="item in clothingStore.items"
-                :key="item.clothing.id"
-                type="button"
-                class="outfit-view__cell"
-                :class="{ 'outfit-view__cell--active': item.clothing.id === activeClothingId }"
-                :aria-pressed="item.clothing.id === activeClothingId"
-                @click="handlePickClothing(item.clothing.id)"
-              >
-                <img
-                  v-if="item.thumbnailUrl"
-                  class="outfit-view__thumb"
-                  :src="item.thumbnailUrl"
-                  :alt="item.clothing.name"
-                />
-                <span v-else class="outfit-view__thumb outfit-view__thumb--empty" aria-hidden="true">
-                  <AppIcon name="hanger" :size="22" :stroke-width="2.2" />
-                </span>
-
-                <span class="outfit-view__cell-name ellipsis">{{ item.clothing.name }}</span>
-
-                <span
-                  v-if="item.clothing.id === activeClothingId"
-                  class="outfit-view__check"
-                  aria-hidden="true"
+            <template v-if="clothingStore.items.length">
+              <div class="outfit-view__filter">
+                <p class="m-hint outfit-view__filter-text">{{ filterHint }}</p>
+                <AppButton
+                  v-if="showAllMaterials && slotCategories.length"
+                  type="text"
+                  size="sm"
+                  @click="showCategoryOnly"
                 >
-                  <AppIcon name="check" :size="13" :stroke-width="3.4" />
-                </span>
-              </button>
-            </div>
+                  只看「{{ OUTFIT_SLOT_LABEL[activeSlot] }}」
+                </AppButton>
+              </div>
+
+              <div v-if="materials.length" class="outfit-view__grid">
+                <button
+                  v-for="item in materials"
+                  :key="item.clothing.id"
+                  type="button"
+                  class="outfit-view__cell"
+                  :class="{ 'outfit-view__cell--active': activeClothingIds.includes(item.clothing.id) }"
+                  :aria-pressed="activeClothingIds.includes(item.clothing.id)"
+                  @click="pickClothing(item.clothing.id)"
+                >
+                  <img
+                    v-if="item.thumbnailUrl"
+                    class="outfit-view__thumb"
+                    :src="item.thumbnailUrl"
+                    :alt="item.clothing.name"
+                  />
+                  <span v-else class="outfit-view__thumb outfit-view__thumb--empty" aria-hidden="true">
+                    <AppIcon name="hanger" :size="22" :stroke-width="2.2" />
+                  </span>
+
+                  <span class="outfit-view__cell-name ellipsis">{{ item.clothing.name }}</span>
+
+                  <span
+                    v-if="activeClothingIds.includes(item.clothing.id)"
+                    class="outfit-view__check"
+                    aria-hidden="true"
+                  >
+                    <AppIcon name="check" :size="13" :stroke-width="3.4" />
+                  </span>
+                </button>
+              </div>
+
+              <!-- 兜底：品类筛选后一件都没有时，给一条明确的出路 -->
+              <div v-else class="outfit-view__fallback">
+                <p class="outfit-view__fallback-title">
+                  「{{ OUTFIT_SLOT_LABEL[activeSlot] }}」分类下还没有衣服
+                </p>
+                <p class="m-caption">
+                  给衣服打上「{{ slotCategories.join('、') }}」品类标签后就会出现在这里，也可以先临时看全部衣服。
+                </p>
+                <div class="outfit-view__fallback-actions">
+                  <AppButton type="secondary" tone="cyan" size="md" icon="grid" @click="showAllClothes">
+                    显示全部衣服
+                  </AppButton>
+                  <AppButton type="secondary" tone="red" size="md" icon="plus" @click="goCreateClothing">
+                    去添加衣服
+                  </AppButton>
+                </div>
+              </div>
+            </template>
 
             <AppEmpty
               v-else-if="!clothingStore.loading"
@@ -302,30 +440,61 @@ onMounted(async () => {
         </section>
       </div>
 
-      <!-- 已保存的搭配 -->
+      <!-- 已保存的搭配：显示各部件名、总件数与日期，卡片上可直接删除 -->
       <section class="outfit-view__saved">
         <h2 class="m-section-title outfit-view__title outfit-view__title--green">已保存的搭配</h2>
 
-        <div v-if="outfitStore.list.length" class="outfit-view__saved-list scroll-x">
-          <button
-            v-for="outfit in outfitStore.list"
-            :key="outfit.id"
-            type="button"
+        <div v-if="outfitStore.summaries.length" class="outfit-view__saved-list scroll-x">
+          <article
+            v-for="summary in outfitStore.summaries"
+            :key="summary.outfit.id"
             class="outfit-view__saved-card m-card"
-            :class="{ 'outfit-view__saved-card--editing': outfit.id === outfitStore.editingId }"
-            @click="openSavedOutfit(outfit.id)"
+            :class="{ 'outfit-view__saved-card--editing': summary.outfit.id === outfitStore.editingId }"
           >
             <div class="m-geo-layer" aria-hidden="true">
               <AppGeo shape="ring" color="pink" size="sm" :orbit="1" at="br" />
             </div>
 
-            <span class="outfit-view__saved-name m-pop ellipsis">{{ outfit.name }}</span>
+            <button
+              type="button"
+              class="outfit-view__saved-open"
+              :aria-label="`打开搭配「${summary.outfit.name}」`"
+              @click="openSavedOutfit(summary.outfit.id)"
+            >
+              <span class="outfit-view__saved-head">
+                <span class="outfit-view__saved-name m-pop ellipsis">{{ summary.outfit.name }}</span>
+                <span v-if="summary.outfit.id === outfitStore.editingId" class="m-badge m-badge--green">
+                  编辑中
+                </span>
+              </span>
 
-            <span v-if="outfit.id === outfitStore.editingId" class="m-badge m-badge--green">
-              编辑中
-            </span>
-            <span v-else class="outfit-view__saved-meta m-mono">{{ formatDate(outfit.updatedAt) }}</span>
-          </button>
+              <span v-if="summary.items.length" class="outfit-view__saved-parts ellipsis-2">
+                <template v-for="(line, index) in slotPartLines(summary.items)" :key="line.slot">
+                  <span v-if="index" class="outfit-view__saved-sep" aria-hidden="true">／</span>
+                  <span class="outfit-view__saved-part">
+                    <span class="outfit-view__saved-slot">{{ line.label }}：</span>{{ line.names.join('、') }}
+                  </span>
+                </template>
+              </span>
+              <span v-else class="outfit-view__saved-parts m-caption">这套搭配里的衣服都被删除了</span>
+
+              <span class="outfit-view__saved-foot">
+                <span class="m-badge m-badge--cyan m-mono">{{ summary.items.length }} 件</span>
+                <span class="m-mono outfit-view__saved-date">
+                  {{ formatDate(summary.outfit.updatedAt) }}
+                </span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              class="outfit-view__saved-delete"
+              :aria-label="`删除搭配「${summary.outfit.name}」`"
+              @click="removeSavedOutfit(summary, $event)"
+            >
+              <AppIcon name="trash" :size="15" :stroke-width="2.6" />
+            </button>
+          </article>
         </div>
 
         <AppEmpty
@@ -407,12 +576,30 @@ onMounted(async () => {
   padding-right: var(--m-8);
 }
 
+/* 编辑态标记：名字过长时截断，不撑破卡片 */
+.outfit-view__editing {
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* 8 行槽位纵向排列；手机上画布区自己滚动，页面不被撑长 */
 .outfit-view__slots {
   position: relative;
   z-index: 1;
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--m-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--m-2);
+  max-height: 46vh;
+  overflow-y: auto;
+  padding-right: var(--m-1);
+  padding-bottom: var(--m-1);
+}
+
+.outfit-view__canvas-hint {
+  position: relative;
+  z-index: 1;
 }
 
 /* ------------------------- 素材区 ------------------------- */
@@ -425,6 +612,20 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--m-4);
+}
+
+/* 筛选说明 + 「只看本类」回退入口 */
+.outfit-view__filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--m-2) var(--m-3);
+  flex-wrap: wrap;
+}
+
+.outfit-view__filter-text {
+  flex: 1;
+  min-width: 0;
 }
 
 .outfit-view__grid {
@@ -516,6 +717,30 @@ onMounted(async () => {
   box-shadow: var(--m-shadow-xs);
 }
 
+/* 品类筛不出衣服时的兜底：虚线框 + 两条明确出路 */
+.outfit-view__fallback {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--m-3);
+  padding: var(--m-4);
+  border: 2px dashed var(--m-line-color);
+  border-radius: var(--m-radius);
+  background-color: var(--m-surface-2);
+}
+
+.outfit-view__fallback-title {
+  font-size: var(--m-fs-sm);
+  font-weight: var(--m-weight-black);
+  color: var(--m-text);
+}
+
+.outfit-view__fallback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--m-3);
+}
+
 /* ------------------------- 已保存的搭配 ------------------------- */
 
 .outfit-view__saved {
@@ -527,41 +752,123 @@ onMounted(async () => {
 .outfit-view__saved-list {
   gap: var(--m-4);
   padding: var(--m-1) var(--m-6) var(--m-6) var(--m-1);
+  align-items: stretch;
 }
 
 .outfit-view__saved-card {
   flex: 0 0 auto;
-  width: 158px;
+  width: 236px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--m-2);
-  padding: var(--m-3);
   scroll-snap-align: start;
-  text-align: left;
-  cursor: pointer;
 }
 
 .outfit-view__saved-card--editing {
   background-color: var(--m-yellow);
-  color: var(--m-on-accent);
+}
+
+/* 整卡可点：真正的按钮铺满卡片，删除按钮是它的兄弟节点（避免按钮嵌套） */
+.outfit-view__saved-open {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--m-2);
+  width: 100%;
+  padding: var(--m-3);
+  padding-right: var(--m-7);
+  border: none;
+  background-color: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.outfit-view__saved-open:active {
+  transform: translate(3px, 3px);
+}
+
+.outfit-view__saved-head {
+  display: flex;
+  align-items: center;
+  gap: var(--m-2);
+  width: 100%;
+  min-width: 0;
 }
 
 .outfit-view__saved-name {
   --m-pop: var(--m-cyan);
-  position: relative;
-  z-index: 1;
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   font-size: var(--m-fs-sm);
   font-weight: var(--m-weight-black);
   letter-spacing: -0.01em;
 }
 
-.outfit-view__saved-meta {
-  position: relative;
-  z-index: 1;
+.outfit-view__saved-parts {
+  display: -webkit-box;
+  width: 100%;
+  font-size: var(--m-fs-xs);
+  line-height: 1.5;
+  color: var(--m-text);
+}
+
+.outfit-view__saved-part {
+  display: inline;
+}
+
+.outfit-view__saved-slot {
+  font-weight: var(--m-weight-black);
+}
+
+.outfit-view__saved-sep {
+  color: var(--m-text-muted);
+}
+
+.outfit-view__saved-foot {
+  display: flex;
+  align-items: center;
+  gap: var(--m-2);
+  flex-wrap: wrap;
+  margin-top: auto;
+  padding-top: var(--m-1);
+}
+
+.outfit-view__saved-date {
   font-size: var(--m-fs-xs);
   color: var(--m-text-muted);
+}
+
+.outfit-view__saved-delete {
+  position: absolute;
+  z-index: 2;
+  top: var(--m-2);
+  right: var(--m-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--m-line-color);
+  background-color: var(--m-surface);
+  color: var(--m-text);
+  box-shadow: var(--m-shadow-xs);
+  transition: var(--m-transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .outfit-view__saved-delete:hover {
+    background-color: var(--m-red);
+    color: var(--m-on-accent);
+    box-shadow: var(--m-shadow-sm);
+  }
+}
+
+.outfit-view__saved-delete:active {
+  transform: translate(2px, 2px);
+  box-shadow: none;
 }
 
 /* ------------------------- 保存弹窗表单 ------------------------- */
@@ -581,30 +888,31 @@ onMounted(async () => {
   }
 }
 
-/* 桌面：左右两栏；左栏画布固定宽度，槽位改成 3 列更像孟菲斯的错落感 */
+/* 桌面：左右两栏；左栏画布固定宽度，槽位不再需要内部滚动 */
 @media (min-width: 1024px) {
   .outfit-view__layout {
-    grid-template-columns: minmax(320px, 420px) minmax(0, 1fr);
+    grid-template-columns: minmax(340px, 420px) minmax(0, 1fr);
     gap: var(--m-7);
   }
 
   .outfit-view__slots {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+    padding-bottom: 0;
   }
 
   .outfit-view__picker {
     padding: var(--m-5);
   }
 
-  .outfit-view__grid {
-    max-height: none;
-    overflow-y: visible;
-    padding-right: 0;
-    padding-bottom: var(--m-1);
-  }
-
   .outfit-view__picker-body {
     gap: var(--m-5);
+  }
+
+  .outfit-view__grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    max-height: 62vh;
   }
 }
 
@@ -615,7 +923,7 @@ onMounted(async () => {
   }
 
   .outfit-view__saved-card {
-    width: 176px;
+    width: 256px;
   }
 }
 </style>

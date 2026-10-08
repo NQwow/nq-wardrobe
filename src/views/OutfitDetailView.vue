@@ -1,5 +1,6 @@
 <!-- 搭配详情/编辑（孟菲斯风格过渡页）：
-     读取指定搭配、载入搭配页画布，然后跳回搭配页；真正的详情展示留到第二阶段（见文内 TODO）。 -->
+     读取指定搭配、载入搭配页画布（outfitStore.loadToCanvas），然后跳回搭配页继续编辑；
+     真正的详情展示留到第二阶段（见文内 TODO）。删除搭配放在搭配页的已保存列表里，本页不做删除。 -->
 <script setup lang="ts">
 import { onMounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -75,7 +76,7 @@ function goBack(): void {
 }
 
 // TODO(第二阶段)：本页做成真正的搭配详情——只读展示全部槽位与衣服、一键收藏（toggleFavorite）、
-// TODO(第二阶段)：删除搭配（useConfirm 二次确认 + outfitStore.remove）、改名与换封面图。
+// TODO(第二阶段)：改名与换封面图（删除已在 OutfitView 的「已保存的搭配」卡片上完成）。
 // TODO(第二阶段)：支持「按这套写日记」入口（带上 outfitId 跳 DiaryEditView）。
 
 onMounted(() => {
