@@ -1,8 +1,8 @@
-<!-- 日记新增（孟菲斯风格）：日期 / 天气 / 场合 / 备注 + 衣服多选 + 关联搭配。
-     手机端「保存」固定在底部导航之上，桌面端（≥700px）变成普通按钮行。 -->
+<!-- 日记新增 / 编辑（孟菲斯风格）：日期 / 天气 / 场合 / 备注 + 关联搭配 + 衣服多选。
+     选定搭配会自动把搭配里的衣服合并进已选；手机端「取消 / 保存」固定在底部导航之上，≥700px 改成普通按钮行。 -->
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, onMounted, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import AppButton from '@/components/base/AppButton.vue';
 import AppEmpty from '@/components/base/AppEmpty.vue';
 import AppGeo from '@/components/base/AppGeo.vue';
@@ -13,18 +13,35 @@ import AppTextarea from '@/components/base/AppTextarea.vue';
 import type { SelectOption } from '@/components/base/types';
 import PageHeader from '@/components/business/PageHeader.vue';
 import { useToast } from '@/composables/useToast';
-import type { DiaryDraft } from '@/services';
+import type { DiaryEntry } from '@/models';
+import { outfitService, type DiaryDraft } from '@/services';
 import { useClothingStore, useDiaryStore, useOutfitStore } from '@/stores';
-import { fromDateInputValue, toDateInputValue } from '@/utils/date';
+import { formatDate, fromDateInputValue, startOfDay, toDateInputValue } from '@/utils/date';
 
+const route = useRoute();
 const router = useRouter();
 const toast = useToast();
 const clothingStore = useClothingStore();
 const outfitStore = useOutfitStore();
 const diaryStore = useDiaryStore();
 
-/** 穿着日期（YYYY-MM-DD，配合 AppInput 的 date 类型），默认今天 */
-const dateValue = ref(toDateInputValue(Date.now()));
+/** 是否是编辑已有记录（否则是新增） */
+const isEditMode = computed(() => route.name === 'diary-edit');
+
+/**
+ * 解析初始日期：编辑模式取路由参数（当天 0 点毫秒时间戳），
+ * 新增模式取 query 上的日期，都没有时用今天。
+ * @returns 当天 0 点的毫秒时间戳
+ */
+function resolveInitialDate(): number {
+  const raw = isEditMode.value ? route.params.date : route.query.date;
+  const parsed = typeof raw === 'string' ? Number(raw) : Number.NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return startOfDay(parsed);
+  return startOfDay();
+}
+
+/** 穿着日期（YYYY-MM-DD，配合 AppInput 的 date 类型） */
+const dateValue = ref(toDateInputValue(resolveInitialDate()));
 /** 天气 */
 const weather = ref('');
 /** 场合 */
@@ -35,8 +52,14 @@ const note = ref('');
 const selectedClothingIds = ref<string[]>([]);
 /** 关联的搭配 id（空串表示不关联搭配） */
 const outfitId = ref('');
+/** 正在编辑的记录 id（新增模式为空串，用于判断改日期会不会覆盖自己） */
+const editingEntryId = ref('');
 /** 是否正在保存 */
 const saving = ref(false);
+/** 表单是否已完成初始化（初始化前不显示「会覆盖」的提示，避免闪一下） */
+const formReady = ref(false);
+/** 回填表单期间置为 true，避免刚进页面就触发「选搭配自动带衣服」的提示 */
+const hydrating = ref(false);
 
 /** 关联搭配的下拉选项（第一项固定为「不关联搭配」空选项） */
 const outfitOptions = computed<SelectOption[]>(() => [
@@ -44,13 +67,36 @@ const outfitOptions = computed<SelectOption[]>(() => [
   ...outfitStore.list.map((outfit) => ({ value: outfit.id, label: outfit.name }))
 ]);
 
+/** 页头标题：编辑态与新增态用不同文案 */
+const headerTitle = computed(() => (isEditMode.value ? '编辑记录' : '记录穿搭'));
+
+/** 页头副标题：跟着日期输入实时变化 */
+const headerSubtitle = computed(() => formatDate(fromDateInputValue(dateValue.value)));
+
+/** 日期为空时的错误提示 */
+const dateError = computed(() => (dateValue.value ? '' : '请选择日期'));
+
+/** 日期输入框的辅助说明（编辑模式下提醒改日期等于挪动这条记录） */
+const dateHint = computed(() => (isEditMode.value ? '改日期等于把这条记录挪到另一天' : ''));
+
+/**
+ * 表单里的日期已经存在别的记录（保存会覆盖那一天）。
+ * 依赖已加载的日记列表，因此进页面时会把日记一并载入。
+ */
+const conflictEntry = computed<DiaryEntry | undefined>(() => {
+  if (!formReady.value || !dateValue.value) return undefined;
+  const existing = diaryStore.findByDate(fromDateInputValue(dateValue.value));
+  if (!existing || existing.id === editingEntryId.value) return undefined;
+  return existing;
+});
+
 /**
  * 把捕获到的未知错误转成可展示文案。
  * @param error 捕获到的错误
  * @returns 错误文案
  */
 function toErrorMessage(error: unknown): string {
-  return error instanceof Error && error.message ? error.message : '保存失败，请稍后重试';
+  return error instanceof Error && error.message ? error.message : '操作失败，请稍后重试';
 }
 
 /**
@@ -72,10 +118,105 @@ function toggleClothing(clothingId: string): void {
   else selectedClothingIds.value.push(clothingId);
 }
 
-/** 保存日记，成功后回到日记列表 */
+/**
+ * 读取路由参数对应的已有记录（编辑模式专用）。
+ * @returns 已存在的记录；参数无效或当天没有记录时返回 undefined
+ */
+function resolveEditingEntry(): DiaryEntry | undefined {
+  const raw = route.params.date;
+  const parsed = typeof raw === 'string' ? Number(raw) : Number.NaN;
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return diaryStore.findByDate(startOfDay(parsed));
+}
+
+/**
+ * 编辑模式：把已有记录回填到表单。
+ * 已被删除的衣服不再回填，避免保存时留下找不到的引用。
+ */
+async function applyExistingEntry(): Promise<void> {
+  const entry = resolveEditingEntry();
+  if (!entry) {
+    toast.error('没有找到这一天的记录，可以直接补记');
+    return;
+  }
+
+  try {
+    hydrating.value = true;
+    editingEntryId.value = entry.id;
+    dateValue.value = toDateInputValue(entry.date);
+    weather.value = entry.weather ?? '';
+    occasion.value = entry.occasion ?? '';
+    note.value = entry.note ?? '';
+    outfitId.value = entry.outfitId ?? '';
+    selectedClothingIds.value = entry.clothingIds.filter((id) => Boolean(clothingStore.findItem(id)));
+
+    // 等这一轮 watch 跑完再解除静默，否则回填 outfitId 会弹一次自动带衣服的提示
+    await nextTick();
+  } catch (error) {
+    toast.error(toErrorMessage(error));
+  } finally {
+    hydrating.value = false;
+  }
+}
+
+/**
+ * 把选中搭配里的衣服合并进已选（只做合并，不自动移除用户手动选的）。
+ * @param id 搭配 id，空串表示不关联搭配
+ */
+async function mergeOutfitClothes(id: string): Promise<void> {
+  if (!id) return;
+
+  try {
+    const detail = await outfitService.getDetail(id);
+    if (!detail) return;
+
+    // 搭配里已被删除的衣服跳过（findItem 在已加载的衣服列表里查不到）
+    const available = detail.items
+      .map((item) => item.clothingId)
+      .filter((clothingId) => Boolean(clothingStore.findItem(clothingId)));
+    const added = available.filter((clothingId) => !isSelected(clothingId));
+    selectedClothingIds.value = Array.from(new Set([...selectedClothingIds.value, ...available]));
+
+    if (added.length) toast.info(`已自动加入「${detail.outfit.name}」里的 ${added.length} 件衣服`);
+    else toast.info(`「${detail.outfit.name}」里的衣服都已经选上了`);
+  } catch (error) {
+    toast.error(toErrorMessage(error));
+  }
+}
+
+// 选定搭配 → 自动带出搭配里的衣服
+watch(outfitId, async (id) => {
+  if (hydrating.value) return;
+  await mergeOutfitClothes(id);
+});
+
+/** 取消编辑，返回上一页（没有历史记录时回到日历） */
+async function handleCancel(): Promise<void> {
+  try {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+    await router.push({ name: 'diary' });
+  } catch (error) {
+    toast.error(toErrorMessage(error));
+  }
+}
+
+/**
+ * 保存日记，成功后回到日历并定位到保存的那一天。
+ * 编辑模式下改了日期时，会删掉原来那天的记录，效果等于把记录挪到新日期。
+ */
 async function handleSave(): Promise<void> {
+  if (!dateValue.value) {
+    toast.error('请先选择日期');
+    return;
+  }
+
   saving.value = true;
   try {
+    // 先记下正在编辑的记录，保存会重载列表，之后需要用它做「挪日期」
+    const original = isEditMode.value ? resolveEditingEntry() : undefined;
     const draft: DiaryDraft = {
       date: fromDateInputValue(dateValue.value),
       outfitId: outfitId.value || undefined,
@@ -84,9 +225,16 @@ async function handleSave(): Promise<void> {
       occasion: occasion.value,
       note: note.value
     };
-    await diaryStore.save(draft);
-    toast.success('今天的穿搭已记录');
-    router.back();
+    const saved = await diaryStore.save(draft);
+
+    if (original && original.date !== saved.date) {
+      await diaryStore.remove(original.id);
+      toast.success(`记录已挪到 ${formatDate(saved.date)}`);
+    } else {
+      toast.success(isEditMode.value ? '这一天的记录已更新' : '这一天的穿搭已记录');
+    }
+
+    await router.push({ name: 'diary', query: { date: String(saved.date) } });
   } catch (error) {
     // service 在「既没选搭配也没选衣服」等情况下会抛错，这里统一提示
     toast.error(toErrorMessage(error));
@@ -95,23 +243,22 @@ async function handleSave(): Promise<void> {
   }
 }
 
-// TODO(第二阶段)：打开页面时先查当天是否已有日记（diaryService.getByDate），有则回填为编辑。
-// TODO(第二阶段)：提交前的本地校验与字段错误高亮（日期必填、至少一套搭配或一件衣服）。
-// TODO(第二阶段)：衣服多选支持按品类/季节筛选；选定搭配后自动带出该搭配里的全部衣服。
-// TODO(第二阶段)：天气与场合改成预设选择器（配合标签体系），而不是纯手输。
-
 onMounted(async () => {
   try {
-    await Promise.all([clothingStore.load(), outfitStore.load()]);
+    // 日记列表用于编辑模式回填与「改日期会覆盖」的提示，所以三种数据一起载入
+    await Promise.all([clothingStore.load(), outfitStore.load(), diaryStore.load()]);
+    if (isEditMode.value) await applyExistingEntry();
   } catch (error) {
     toast.error(toErrorMessage(error));
+  } finally {
+    formReady.value = true;
   }
 });
 </script>
 
 <template>
   <div class="page page--with-header page--narrow diary-edit">
-    <PageHeader title="记录今天" back tone="green" />
+    <PageHeader :title="headerTitle" :subtitle="headerSubtitle" back tone="green" />
 
     <div class="page__body diary-edit__body">
       <!-- 基本信息：桌面端日期 / 天气 / 场合一行三列，备注整行 -->
@@ -120,13 +267,25 @@ onMounted(async () => {
           <AppGeo shape="circle" color="yellow" size="md" :orbit="1" at="tr" />
         </div>
 
-        <h2 class="m-section-title diary-edit__title">今天的基本信息</h2>
+        <h2 class="m-section-title diary-edit__title">基本信息</h2>
 
         <div class="diary-edit__fields">
-          <AppInput v-model="dateValue" type="date" label="日期" icon="calendar" required />
+          <AppInput
+            v-model="dateValue"
+            type="date"
+            label="日期"
+            icon="calendar"
+            required
+            :error="dateError"
+            :hint="dateHint"
+          />
           <AppInput v-model="weather" label="天气" placeholder="如：晴 18 度" :maxlength="20" />
           <AppInput v-model="occasion" label="场合" placeholder="如：通勤、约会" :maxlength="20" />
         </div>
+
+        <p v-if="conflictEntry" class="m-hint diary-edit__warn">
+          这一天已经有记录了，保存会把原来那条覆盖掉（同一天只保留一条）。
+        </p>
 
         <AppTextarea
           v-model="note"
@@ -135,6 +294,18 @@ onMounted(async () => {
           :rows="3"
           :maxlength="200"
         />
+      </section>
+
+      <!-- 关联搭配：选定后自动把搭配里的衣服合并进下面的多选 -->
+      <section class="diary-edit__card m-card m-card--pad">
+        <div class="m-geo-layer" aria-hidden="true">
+          <AppGeo shape="diamond" color="pink" size="md" :orbit="4" at="tr" />
+        </div>
+
+        <h2 class="m-section-title diary-edit__title diary-edit__title--green">关联搭配</h2>
+
+        <AppSelect v-model="outfitId" :options="outfitOptions" placeholder="选择一套搭配" />
+        <p class="m-hint">选了搭配会自动把它里面的衣服加进「穿了哪些衣服」，只加不减。</p>
       </section>
 
       <!-- 衣服多选 -->
@@ -163,6 +334,7 @@ onMounted(async () => {
               class="diary-edit__thumb"
               :src="item.thumbnailUrl"
               :alt="item.clothing.name"
+              loading="lazy"
             />
             <span v-else class="diary-edit__thumb diary-edit__thumb--empty" aria-hidden="true">
               <AppIcon name="hanger" :size="22" :stroke-width="2.2" />
@@ -186,19 +358,9 @@ onMounted(async () => {
         <p v-else class="m-caption">正在载入衣服…</p>
       </section>
 
-      <!-- 关联搭配（第二阶段会与衣服选择联动） -->
-      <section class="diary-edit__card m-card m-card--pad">
-        <div class="m-geo-layer" aria-hidden="true">
-          <AppGeo shape="diamond" color="pink" size="md" :orbit="4" at="tr" />
-        </div>
-
-        <h2 class="m-section-title diary-edit__title diary-edit__title--green">关联搭配</h2>
-
-        <AppSelect v-model="outfitId" :options="outfitOptions" placeholder="选择一套搭配" />
-      </section>
-
-      <!-- 保存：手机端贴底（让开底部导航与安全区），桌面端普通按钮行 -->
+      <!-- 取消 / 保存：手机端贴底（让开底部导航与安全区），桌面端普通按钮行 -->
       <div class="diary-edit__actions">
+        <AppButton type="secondary" tone="red" size="lg" @click="handleCancel">取消</AppButton>
         <AppButton
           type="primary"
           tone="green"
@@ -220,7 +382,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   gap: var(--m-5);
-  /* 给固定底部的保存条留位 */
+  /* 给固定底部的操作条留位 */
   padding-bottom: var(--m-10);
 }
 
@@ -250,6 +412,13 @@ onMounted(async () => {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--m-4);
+}
+
+.diary-edit__warn {
+  position: relative;
+  z-index: 1;
+  font-weight: var(--m-weight-bold);
+  color: var(--m-danger);
 }
 
 /* 标题与计数靠左排，右上角留给几何装饰 */
@@ -311,6 +480,7 @@ onMounted(async () => {
 .diary-edit__cell--active {
   background-color: var(--m-green);
   color: var(--m-on-accent);
+  border-width: var(--m-bw-thick);
   box-shadow: var(--m-shadow);
 }
 
@@ -332,6 +502,7 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: center;
+  border: var(--m-line);
   color: var(--m-text-muted);
 }
 
@@ -356,7 +527,7 @@ onMounted(async () => {
   box-shadow: var(--m-shadow-xs);
 }
 
-/* ------------------------- 保存操作区 ------------------------- */
+/* ------------------------- 操作区 ------------------------- */
 
 .diary-edit__actions {
   position: fixed;
@@ -364,15 +535,30 @@ onMounted(async () => {
   right: 0;
   bottom: calc(var(--m-nav-h) + var(--m-safe-b));
   z-index: 30;
+  display: flex;
+  gap: var(--m-3);
   padding: var(--m-3) var(--m-4);
   background-color: var(--m-surface);
   border-top: var(--m-line);
   box-shadow: 0 -4px 0 0 var(--m-line-color);
 }
 
+/* 「取消」保持自然宽度，「保存」吃掉剩余空间 */
+.diary-edit__actions :deep(.m-btn--block) {
+  flex: 1 1 auto;
+  width: auto;
+}
+
 /* ------------------------- 断点 ------------------------- */
 
-/* 平板起：日期 / 天气 / 场合一行三列，保存改成普通按钮行 */
+/* 大屏手机起：衣服格子多排一列 */
+@media (min-width: 640px) {
+  .diary-edit__grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* 平板起：日期 / 天气 / 场合一行三列，操作条改成普通按钮行 */
 @media (min-width: 700px) {
   .diary-edit__body {
     padding-bottom: 0;
@@ -390,7 +576,6 @@ onMounted(async () => {
 
   .diary-edit__actions {
     position: static;
-    display: flex;
     justify-content: flex-end;
     padding: 0;
     background-color: transparent;
@@ -399,12 +584,16 @@ onMounted(async () => {
   }
 
   .diary-edit__actions :deep(.m-btn) {
+    min-width: 180px;
+  }
+
+  .diary-edit__actions :deep(.m-btn--block) {
+    flex: 0 0 auto;
     width: auto;
-    min-width: 220px;
   }
 }
 
-/* 桌面：正文留白再加大 */
+/* 桌面：正文留白再加大，衣服格子一行更多 */
 @media (min-width: 1024px) {
   .diary-edit__body {
     gap: var(--m-6);
@@ -412,6 +601,17 @@ onMounted(async () => {
 
   .diary-edit__card {
     gap: var(--m-5);
+  }
+
+  .diary-edit__grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+/* 宽屏：操作按钮再宽一档 */
+@media (min-width: 1440px) {
+  .diary-edit__actions :deep(.m-btn) {
+    min-width: 220px;
   }
 }
 </style>
