@@ -13,8 +13,9 @@ import {
   wardrobeRepo
 } from '@/repositories';
 import { imageService } from './imageService';
-import { downloadJson, dataUrlToBlob, readFileAsText } from '@/utils/blob';
+import { dataUrlToBlob, readFileAsText } from '@/utils/blob';
 import { formatFileStamp } from '@/utils/date';
+import { saveTextFile, type SaveFileResult } from '@/utils/save';
 import { DEFAULT_APP_NAME, type BackupData, type BackupFile, type BackupImage } from '@/models';
 
 /** 当前备份格式版本 */
@@ -24,6 +25,16 @@ export const BACKUP_VERSION = 1;
 export interface ImportResult {
   /** 各表导入条数 */
   counts: Record<string, number>;
+}
+
+/** 备份体积预估 */
+export interface BackupEstimate {
+  /** 未删除的衣服件数 */
+  clothingCount: number;
+  /** 图片张数 */
+  imageCount: number;
+  /** 估算的备份文件字节数 */
+  estimatedBytes: number;
 }
 
 /**
@@ -95,12 +106,30 @@ export const backupService = {
   },
 
   /**
-   * 生成备份文件并触发下载，文件名形如 nq-wardrobe-backup-20250101-0930.json。
-   * @param appName 当前应用名
+   * 预估备份文件大小，供导出前提示用户（图片以 Base64 内嵌，体积会明显膨胀）。
+   * @returns 衣服件数、图片张数与估算字节数
    */
-  async downloadBackup(appName: string): Promise<void> {
+  async estimate(): Promise<BackupEstimate> {
+    const [clothes, images] = await Promise.all([clothingRepo.listAll(), imageRepo.listAll()]);
+    const binaryBytes = images.reduce((sum, item) => sum + item.blob.size + item.thumbnail.size, 0);
+    return {
+      clothingCount: clothes.filter((item) => !item.deletedAt).length,
+      imageCount: images.length,
+      // Base64 让二进制体积涨约 1/3；其余表按每件衣服约 700 字节的 JSON 开销估算
+      estimatedBytes: Math.round(binaryBytes * 1.37) + clothes.length * 700 + 4096
+    };
+  },
+
+  /**
+   * 生成备份文件并交给用户保存。
+   * 浏览器：触发下载；安卓：写入缓存目录后弹出系统分享面板（可存到「文件」/发微信/传网盘）。
+   * @param appName 当前应用名
+   * @returns 实际使用的通道与文件大小
+   */
+  async downloadBackup(appName: string): Promise<SaveFileResult> {
     const backup = await this.buildBackup(appName);
-    downloadJson(backup, `nq-wardrobe-backup-${formatFileStamp()}.json`);
+    const filename = `nq-wardrobe-backup-${formatFileStamp()}.json`;
+    return saveTextFile(JSON.stringify(backup), filename, 'application/json', '保存或分享备份文件');
   },
 
   /**

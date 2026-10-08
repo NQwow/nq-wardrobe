@@ -19,6 +19,7 @@ import { aiService, backupService } from '@/services';
 import { useClothingStore, useSettingsStore, useTagStore, useWardrobeStore } from '@/stores';
 import {
   AI_PROVIDER_PRESETS,
+  APP_VERSION,
   DEFAULT_APP_NAME,
   SORT_KEY_LABEL,
   type AiConfig,
@@ -26,9 +27,10 @@ import {
   type AppTheme,
   type SortKey
 } from '@/models';
+import { formatBytes } from '@/utils/save';
 
-/** 应用版本号（关于分组展示，发版时手动更新） */
-const APP_VERSION = '0.1.0';
+/** 备份超过这个体积就先提示用户（图片以 Base64 内嵌，很容易上百 MB） */
+const EXPORT_WARN_BYTES = 8 * 1024 * 1024;
 
 /** 应用名最大长度 */
 const APP_NAME_MAX = 12;
@@ -228,13 +230,31 @@ function goTags(): void {
 }
 
 /**
- * 导出备份并触发浏览器下载。
+ * 导出备份。
+ * 浏览器直接下载；安卓写入缓存后弹系统分享面板。
+ * 图片以 Base64 内嵌，文件可能很大，超过阈值时先提示体积再让用户确认。
  */
 async function handleExport(): Promise<void> {
   dataBusy.value = true;
   try {
-    await backupService.downloadBackup(settingsStore.appName);
-    toast.success('备份已导出');
+    const estimate = await backupService.estimate();
+    const sizeText = formatBytes(estimate.estimatedBytes);
+
+    if (estimate.estimatedBytes > EXPORT_WARN_BYTES) {
+      const confirmed = await confirmDialog.confirm({
+        title: '备份文件较大',
+        message: `共 ${estimate.clothingCount} 件衣服、${estimate.imageCount} 张图片，导出文件约 ${sizeText}。生成过程需要一点时间，确定继续吗？`,
+        confirmText: '继续导出'
+      });
+      if (!confirmed) return;
+    }
+
+    const result = await backupService.downloadBackup(settingsStore.appName);
+    toast.success(
+      result.via === 'share'
+        ? `备份已生成（${formatBytes(result.bytes)}），请在分享面板里选择保存位置`
+        : `备份已导出（${formatBytes(result.bytes)}）`
+    );
   } catch (error) {
     toast.error(toMessage(error, '备份导出失败'));
   } finally {

@@ -19,7 +19,7 @@ export type { OutfitDetail, OutfitSummary, OutfitItemDetail } from './outfitServ
 export { diaryService } from './diaryService';
 export type { DiaryDraft, DiaryDetail } from './diaryService';
 export { backupService } from './backupService';
-export type { ImportResult } from './backupService';
+export type { ImportResult, BackupEstimate } from './backupService';
 export { BACKUP_VERSION } from './backupService';
 export { aiService } from './aiService';
 export type { RecognizeResult, RecommendParams, RecommendResult, TestConnectionResult } from './aiService';
