@@ -52,6 +52,13 @@ export const routes: RouteRecordRaw[] = [
     meta: { title: '记录穿搭' }
   },
   {
+    // :date 是当天 0 点的毫秒时间戳，用于编辑已有记录
+    path: '/diary/edit/:date',
+    name: 'diary-edit',
+    component: () => import('@/views/DiaryEditView.vue'),
+    meta: { title: '编辑记录' }
+  },
+  {
     path: '/settings',
     name: 'settings',
     component: () => import('@/views/SettingsView.vue'),
