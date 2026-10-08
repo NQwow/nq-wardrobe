@@ -1,6 +1,6 @@
 /**
  * OutfitSlot：搭配画布上的一个槽位。
- * 空槽位是虚线方格，放入衣服后变成实线图片块。
+ * 一个槽位可以放多件衣服（叠穿），因此做成横向一行：槽位名 + 已选缩略图 + 添加按钮。
  */
 <script setup lang="ts">
 import { computed } from 'vue';
@@ -12,29 +12,44 @@ const props = withDefaults(
   defineProps<{
     /** 槽位类型 */
     slot: OutfitSlot;
-    /** 已放入的衣服，为空表示空槽位 */
-    clothing?: OutfitSlotClothing | null;
+    /** 该槽位已选的衣服，按叠穿顺序 */
+    clothes?: OutfitSlotClothing[];
     /** 是否处于选中态（素材区正在为该槽位选衣服） */
     active?: boolean;
   }>(),
   {
-    clothing: null,
+    clothes: () => [],
     active: false
   }
 );
 
 const emit = defineEmits<{
-  /** 点击槽位（选中该槽位用于选衣） */
+  /** 点击添加按钮或槽位名：把该槽位设为当前选衣目标 */
   (event: 'select', slot: OutfitSlot): void;
-  /** 清空槽位 */
+  /** 清空整个槽位 */
   (event: 'clear', slot: OutfitSlot): void;
+  /** 移除槽位中的某一件 */
+  (event: 'remove', slot: OutfitSlot, clothingId: string): void;
 }>();
 
 /** 槽位标题 */
 const label = computed(() => OUTFIT_SLOT_LABEL[props.slot]);
 
+/** 是否已放入衣服 */
+const hasClothes = computed(() => props.clothes.length > 0);
+
 /**
- * 清空槽位（阻止冒泡，避免同时触发选中）。
+ * 移除其中一件（阻止冒泡，避免同时把该槽位设为选衣目标）。
+ * @param event 鼠标事件
+ * @param clothingId 衣服 id
+ */
+function handleRemove(event: MouseEvent, clothingId: string): void {
+  event.stopPropagation();
+  emit('remove', props.slot, clothingId);
+}
+
+/**
+ * 清空整个槽位（阻止冒泡）。
  * @param event 鼠标事件
  */
 function handleClear(event: MouseEvent): void {
@@ -44,92 +59,97 @@ function handleClear(event: MouseEvent): void {
 </script>
 
 <template>
-  <div
-    class="slot"
-    :class="{ 'slot--active': props.active, 'slot--filled': Boolean(props.clothing) }"
-  >
-    <button
-      class="slot__body"
-      type="button"
-      :aria-label="`${label}${props.clothing ? `：${props.clothing.name}` : '（空）'}`"
-      :aria-pressed="props.active"
-      @click="emit('select', props.slot)"
-    >
-      <img
-        v-if="props.clothing?.thumbnailUrl"
-        class="slot__image"
-        :src="props.clothing.thumbnailUrl"
-        :alt="props.clothing.name"
-      />
-      <span v-else-if="props.clothing" class="slot__fallback">
-        <AppIcon name="hanger" :size="24" :stroke-width="2.2" />
-      </span>
-      <span v-else class="slot__plus">
-        <AppIcon name="plus" :size="20" :stroke-width="3" />
-      </span>
+  <div class="slot" :class="{ 'slot--active': props.active, 'slot--filled': hasClothes }">
+    <button class="slot__label" type="button" :aria-pressed="props.active" @click="emit('select', props.slot)">
+      {{ label }}
     </button>
 
+    <div class="slot__items scroll-x">
+      <div v-for="item in props.clothes" :key="item.id" class="slot__thumb">
+        <img v-if="item.thumbnailUrl" class="slot__image" :src="item.thumbnailUrl" :alt="item.name" />
+        <span v-else class="slot__fallback">
+          <AppIcon name="hanger" :size="18" :stroke-width="2.2" />
+        </span>
+        <button
+          class="slot__remove"
+          type="button"
+          :aria-label="`把「${item.name}」移出${label}`"
+          @click="handleRemove($event, item.id)"
+        >
+          <AppIcon name="close" :size="10" :stroke-width="4" />
+        </button>
+      </div>
+
+      <button class="slot__add" type="button" :aria-label="`往${label}里添加衣服`" @click="emit('select', props.slot)">
+        <AppIcon name="plus" :size="18" :stroke-width="3" />
+        <span v-if="!hasClothes" class="slot__add-text">添加</span>
+      </button>
+    </div>
+
     <button
-      v-if="props.clothing"
+      v-if="hasClothes"
       class="slot__clear"
       type="button"
-      :aria-label="`移出${label}`"
+      :aria-label="`清空${label}`"
       @click="handleClear"
     >
-      <AppIcon name="close" :size="12" :stroke-width="3.4" />
+      <AppIcon name="trash" :size="14" :stroke-width="2.6" />
     </button>
-
-    <span class="slot__label">{{ label }}</span>
   </div>
 </template>
 
 <style scoped>
 .slot {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--m-1);
-}
-
-.slot__body {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
-  aspect-ratio: 1;
-  padding: 0;
-  overflow: hidden;
+  gap: var(--m-2);
+  padding: var(--m-2);
   border: var(--m-line);
-  border-style: dashed;
   background-color: var(--m-surface);
-  color: var(--m-text-muted);
   transition: var(--m-transition);
 }
 
-.slot--filled .slot__body {
-  border-style: solid;
-}
-
-@media (hover: hover) and (pointer: fine) {
-  .slot__body:hover {
-    background-color: var(--m-yellow);
-    color: var(--m-ink);
-    box-shadow: var(--m-shadow-xs);
-  }
-}
-
-.slot__body:active {
-  transform: translate(2px, 2px);
-  box-shadow: none;
-}
-
-/* 选中态：实心青底 + 硬阴影，与普通槽位明显区分 */
-.slot--active .slot__body {
-  border-style: solid;
-  border-color: var(--m-line-color);
+/* 选中态：整行换成青底，明确告诉用户「现在往这里加衣服」 */
+.slot--active {
   background-color: var(--m-cyan);
-  box-shadow: var(--m-shadow-sm);
-  color: var(--m-ink);
+  box-shadow: var(--m-shadow-xs);
+}
+
+.slot__label {
+  flex: 0 0 auto;
+  width: 52px;
+  padding: var(--m-2) 0;
+  border: none;
+  background-color: transparent;
+  color: var(--m-text);
+  font-size: var(--m-fs-xs);
+  font-weight: var(--m-weight-black);
+  text-align: center;
+  line-height: 1.3;
+}
+
+.slot--active .slot__label {
+  color: var(--m-on-accent);
+}
+
+.slot__items {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--m-2);
+  padding: 2px 2px 2px var(--m-3);
+  border-left: 2px dashed var(--m-line-color);
+}
+
+.slot__thumb {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
+  border: 2px solid var(--m-line-color);
+  background-color: var(--m-surface-2);
+  overflow: hidden;
 }
 
 .slot__image {
@@ -138,40 +158,84 @@ function handleClear(event: MouseEvent): void {
   object-fit: cover;
 }
 
-.slot__fallback,
-.slot__plus {
+.slot__fallback {
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--m-text-muted);
+}
+
+.slot__remove {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: none;
+  border-left: 2px solid var(--m-line-color);
+  border-bottom: 2px solid var(--m-line-color);
+  background-color: var(--m-surface);
+  color: var(--m-text);
+}
+
+.slot__remove:hover {
+  background-color: var(--m-red);
+}
+
+.slot__add {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: var(--m-2);
+  min-width: 52px;
+  height: 52px;
+  padding: 0 var(--m-3);
+  border: 2px dashed var(--m-line-color);
+  background-color: var(--m-surface);
+  color: var(--m-text-muted);
+  transition: var(--m-transition);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .slot__add:hover {
+    background-color: var(--m-yellow);
+    color: var(--m-ink);
+  }
+}
+
+.slot--active .slot__add {
+  border-style: solid;
+  background-color: var(--m-canvas);
+  color: var(--m-text);
+}
+
+.slot__add-text {
+  font-size: var(--m-fs-xs);
+  font-weight: var(--m-weight-bold);
 }
 
 .slot__clear {
-  position: absolute;
-  top: 4px;
-  right: 4px;
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  width: 22px;
-  height: 22px;
-  border: var(--m-line);
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--m-line-color);
   background-color: var(--m-surface);
   color: var(--m-text);
   transition: var(--m-transition);
 }
 
-.slot__clear:hover {
-  background-color: var(--m-red);
-}
-
-.slot__label {
-  font-size: var(--m-fs-xs);
-  font-weight: var(--m-weight-bold);
-  color: var(--m-text-muted);
-  text-align: center;
-}
-
-.slot--active .slot__label {
-  color: var(--m-text);
+@media (hover: hover) and (pointer: fine) {
+  .slot__clear:hover {
+    background-color: var(--m-red);
+  }
 }
 </style>

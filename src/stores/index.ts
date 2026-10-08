@@ -7,5 +7,4 @@ export { useTagStore } from './tagStore';
 export { useClothingStore } from './clothingStore';
 export { useFilterStore } from './filterStore';
 export { useOutfitStore } from './outfitStore';
-export type { CanvasSlotItem } from './outfitStore';
 export { useDiaryStore } from './diaryStore';
