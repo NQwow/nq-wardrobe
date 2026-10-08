@@ -92,6 +92,25 @@ export const outfitRepo = {
   },
 
   /**
+   * 查询引用了某件衣服的全部搭配项（用于反查「这件衣服属于哪些搭配」）。
+   * @param clothingId 衣服 id
+   * @returns 搭配项列表
+   */
+  async listItemsByClothing(clothingId: string): Promise<OutfitItem[]> {
+    return db.outfitItems.where('clothingId').equals(clothingId).toArray();
+  },
+
+  /**
+   * 按搭配 id 批量查询搭配项。
+   * @param outfitIds 搭配 id 数组
+   * @returns 搭配项列表
+   */
+  async listItemsByOutfits(outfitIds: string[]): Promise<OutfitItem[]> {
+    if (!outfitIds.length) return [];
+    return db.outfitItems.where('outfitId').anyOf(outfitIds).toArray();
+  },
+
+  /**
    * 新增或覆盖搭配项。
    * @param item 搭配项
    */
