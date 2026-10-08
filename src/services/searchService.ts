@@ -2,7 +2,7 @@
  * 搜索与筛选业务逻辑：按关键词、衣柜、标签、状态组合过滤衣服列表。
  */
 import type { ClothingListItem } from './clothingService';
-import type { ClothingStatus } from '@/models';
+import type { ClothingStatus, Tag } from '@/models';
 
 /** 筛选条件 */
 export interface FilterQuery {
@@ -46,17 +46,44 @@ function matchKeyword(item: ClothingListItem, keyword: string): boolean {
   return haystack.includes(keyword);
 }
 
+/**
+ * 把选中的标签展开成完整集合：选中一级标签时，自动带上它所有的下级标签。
+ * 例如只勾了「上装」，则打了「短袖」「衬衫」等二级标签的衣服也会一起命中，
+ * 不需要再手动勾一遍子标签。
+ * @param selected 用户勾选的标签 id
+ * @param tags 全部标签；不传时只按原样匹配
+ * @returns 展开后的标签 id 集合
+ */
+export function expandTagIds(selected: string[], tags?: Tag[]): Set<string> {
+  const result = new Set(selected);
+  if (!tags?.length || !result.size) return result;
+
+  // 反复扫描，层级加深时也无需改代码
+  let grew = true;
+  while (grew) {
+    grew = false;
+    for (const tag of tags) {
+      if (tag.parentId && result.has(tag.parentId) && !result.has(tag.id)) {
+        result.add(tag.id);
+        grew = true;
+      }
+    }
+  }
+  return result;
+}
+
 export const searchService = {
   /**
    * 按筛选条件过滤列表。
    * @param items 衣服列表条目
    * @param query 筛选条件
+   * @param tags 全部标签；传入后选中的一级标签会自动展开到二级子标签
    * @returns 过滤后的列表（新数组，不修改入参）
    */
-  async filter(items: ClothingListItem[], query: FilterQuery): Promise<ClothingListItem[]> {
+  async filter(items: ClothingListItem[], query: FilterQuery, tags?: Tag[]): Promise<ClothingListItem[]> {
     const keyword = query.keyword.trim().toLowerCase();
     const wardrobeSet = new Set(query.wardrobeIds);
-    const tagSet = new Set(query.tagIds);
+    const tagSet = expandTagIds(query.tagIds, tags);
     const statusSet = new Set(query.statuses);
 
     return items.filter((item) => {

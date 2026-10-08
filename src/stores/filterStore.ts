@@ -6,10 +6,13 @@ import { defineStore } from 'pinia';
 import { reactive, ref, watch } from 'vue';
 import { EMPTY_FILTER, searchService, sortService, type ClothingListItem, type FilterQuery } from '@/services';
 import { useClothingStore } from './clothingStore';
+import { useTagStore } from './tagStore';
 import type { ClothingStatus, SortKey } from '@/models';
 
 export const useFilterStore = defineStore('filter', () => {
   const clothingStore = useClothingStore();
+  // 标签树用于把选中的一级标签展开到二级，见 searchService.expandTagIds
+  const tagStore = useTagStore();
 
   /** 当前筛选条件 */
   const query = reactive<FilterQuery>({ ...EMPTY_FILTER, wardrobeIds: [], tagIds: [], statuses: [] });
@@ -33,7 +36,7 @@ export const useFilterStore = defineStore('filter', () => {
     const current = ++token;
     computing.value = true;
     try {
-      const filtered = await searchService.filter(clothingStore.items, query);
+      const filtered = await searchService.filter(clothingStore.items, query, tagStore.list);
       const sorted = await sortService.sort(filtered, sortKey.value);
       if (current !== token) return;
       visibleItems.value = sorted;
@@ -52,6 +55,8 @@ export const useFilterStore = defineStore('filter', () => {
   watch(() => clothingStore.items, () => void refresh());
   watch(query, () => void refresh(), { deep: true });
   watch(sortKey, () => void refresh());
+  // 标签是异步加载的，加载完成后一级标签才能索引到二级，需要重算一次
+  watch(() => tagStore.list, () => void refresh());
 
   /**
    * 设置搜索关键词。
