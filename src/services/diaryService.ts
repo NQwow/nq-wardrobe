@@ -1,12 +1,10 @@
 /**
  * 穿搭日记业务逻辑：日记 CRUD，并在保存时写入穿着记录、更新衣服 wearCount。
- *
- * 说明：第一阶段只做占位页，数据层逻辑先行备好，日历视图留到第二阶段。
  */
-import { clothingRepo, diaryRepo } from '@/repositories';
+import { clothingRepo, diaryRepo, outfitRepo } from '@/repositories';
 import { createId } from '@/utils/id';
 import { startOfDay } from '@/utils/date';
-import type { DiaryEntry } from '@/models';
+import type { Clothing, DiaryEntry, Outfit } from '@/models';
 
 /** 日记草稿 */
 export interface DiaryDraft {
@@ -24,6 +22,16 @@ export interface DiaryDraft {
   note?: string;
 }
 
+/** 日记详情：日记本体 + 关联的搭配与衣服 */
+export interface DiaryDetail {
+  /** 日记本体 */
+  entry: DiaryEntry;
+  /** 关联的搭配（未关联或已被删除时为 undefined） */
+  outfit?: Outfit;
+  /** 关联的衣服（按 entry.clothingIds 的顺序） */
+  clothes: Clothing[];
+}
+
 export const diaryService = {
   /**
    * 查询全部日记，按日期倒序。
@@ -31,6 +39,42 @@ export const diaryService = {
    */
   async list(): Promise<DiaryEntry[]> {
     return diaryRepo.list();
+  },
+
+  /**
+   * 查询日记详情，同时把关联的搭配与衣服查出来。
+   * @param id 日记 id
+   * @returns 详情；日记不存在时返回 undefined
+   */
+  async getDetail(id: string): Promise<DiaryDetail | undefined> {
+    const entry = await diaryRepo.getById(id);
+    if (!entry) return undefined;
+
+    const [outfit, clothes] = await Promise.all([
+      entry.outfitId ? outfitRepo.getById(entry.outfitId) : Promise.resolve(undefined),
+      clothingRepo.listByIds(entry.clothingIds)
+    ]);
+
+    // listByIds 不保证顺序，这里按 entry.clothingIds 重排，保证展示顺序稳定
+    const order = new Map(entry.clothingIds.map((clothingId, index) => [clothingId, index]));
+    const sorted = [...clothes].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+
+    return {
+      entry,
+      outfit: outfit && !outfit.deletedAt ? outfit : undefined,
+      clothes: sorted
+    };
+  },
+
+  /**
+   * 按日期区间查询日记（日历视图按月取数）。
+   * @param from 起始时间戳（含）
+   * @param to 结束时间戳（不含）
+   * @returns 该区间内的日记
+   */
+  async listBetween(from: number, to: number): Promise<DiaryEntry[]> {
+    const all = await diaryRepo.list();
+    return all.filter((entry) => entry.date >= from && entry.date < to);
   },
 
   /**
