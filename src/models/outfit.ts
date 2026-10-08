@@ -46,6 +46,21 @@ export const OUTFIT_SLOTS: OutfitSlot[] = [
   'other'
 ];
 
+/**
+ * 槽位对应的一级品类标签名，用于搭配素材区按槽位筛选衣服。
+ * 空数组表示不做限制（「其他」槽位可以放任何东西）。
+ */
+export const OUTFIT_SLOT_CATEGORY: Record<OutfitSlot, string[]> = {
+  top: ['上装'],
+  bottom: ['下装'],
+  dress: ['连衣裙'],
+  outerwear: ['外套'],
+  shoes: ['鞋'],
+  bag: ['包'],
+  accessory: ['饰品'],
+  other: []
+};
+
 /** 搭配 */
 export interface Outfit {
   /** 主键 */

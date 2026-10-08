@@ -15,7 +15,7 @@ export { CLOTHING_STATUS_LABEL } from './clothing';
 export type { Tag, TagType, TagTreeNode } from './tag';
 export { TAG_TYPE_LABEL, TAG_TYPES } from './tag';
 export type { Outfit, OutfitItem, OutfitSlot } from './outfit';
-export { OUTFIT_SLOT_LABEL, OUTFIT_SLOTS } from './outfit';
+export { OUTFIT_SLOT_LABEL, OUTFIT_SLOTS, OUTFIT_SLOT_CATEGORY } from './outfit';
 export type { DiaryEntry, WearRecord } from './diary';
 export type {
   Setting,

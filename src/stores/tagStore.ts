@@ -93,5 +93,42 @@ export const useTagStore = defineStore('tag', () => {
     return byId.value.get(id)?.name ?? '';
   }
 
-  return { list, loading, byId, byType, tree, load, create, update, remove, nameOf };
+  /**
+   * 取标签所属的一级品类名：二级标签回溯到父级，一级标签返回自身。
+   * @param tagId 标签 id
+   * @returns 一级标签名；该标签不是品类或不存在时返回空串
+   */
+  function categoryRootOf(tagId: string): string {
+    const tag = byId.value.get(tagId);
+    if (!tag || tag.type !== 'category') return '';
+    if (!tag.parentId) return tag.name;
+    return byId.value.get(tag.parentId)?.name ?? '';
+  }
+
+  /**
+   * 判断一件衣服是否属于指定的若干一级品类（二级标签会回溯到父级）。
+   * @param tagIds 衣服的标签 id
+   * @param rootNames 一级品类名；空数组表示不做限制
+   * @returns 是否命中
+   */
+  function matchCategory(tagIds: string[], rootNames: string[]): boolean {
+    if (!rootNames.length) return true;
+    const roots = new Set(rootNames);
+    return tagIds.some((tagId) => roots.has(categoryRootOf(tagId)));
+  }
+
+  return {
+    list,
+    loading,
+    byId,
+    byType,
+    tree,
+    load,
+    create,
+    update,
+    remove,
+    nameOf,
+    categoryRootOf,
+    matchCategory
+  };
 });
